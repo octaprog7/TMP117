@@ -3,29 +3,7 @@
 # Copyright (c) 2022 Roman Shevchik   goctaprog@gmail.com
 import ustruct
 
-
-#   TMP117 Register Map
-#   ADDRESS     TYPE    RESET       ACRONYM                 REGISTER NAME
-#   00h         R       8000h       Temp_Result             Temperature result register
-#   01h         R/W     0220h (1)   Configuration           Configuration register
-#   02h         R/W     6000h (1)   THigh_Limit             Temperature high limit register
-#   03h         R/W     8000h (1)   TLow_Limit              Temperature low limit register
-#   04h         R/W     0000h       EEPROM_UL               EEPROM unlock register
-#   05h         R/W     xxxxh (1)   EEPROM1                 EEPROM1 register
-#   06h         R/W     xxxxh (1)   EEPROM2                 EEPROM2 register
-#   07h         R/W     0000h (1)   Temp_Offset             Temperature offset register Go
-#   08h         R/W     xxxxh (1)   EEPROM3                 EEPROM3 register
-#   0Fh         R       0117h       Device_ID               Device ID register
-
-#   (1) This value is stored in Electrically-Erasable, Programmable Read-Only Memory (EEPROM) during device
-#   manufacturing. The device reset value can be changed by writing the relevant code in the EEPROM cells
-#   (see the EEPROM Overview section).
-
-# conversion modes
-# 00: Continuous conversion (CC)
-# 01: Shutdown (SD)
-# 10: Continuous conversion (CC), Same as 00 (reads back = 00)
-# 11: One-shot conversion (OS)
+# Please read this before use!: https://www.ti.com/product/TMP117
 
 
 def _check_value(value, valid_range, error_msg):
@@ -100,10 +78,18 @@ class TMP117:
         self._set_config_reg(tmp)
 
     def set_temperature_offset(self, offset: float) -> int:
+        """set temperature offset to sensor.
+        Большая просьба к читателям: значение смещения не должно превышать разумного значения.
+        Например +/- 10. Контролируйте это самостоятельно!
+        A big request to readers: the offset value should not exceed a reasonable value.
+        For example +/- 10.
+        Control it yourself!
+        """
         reg_val = int(offset // TMP117.__scale)
         return self._write_register(0x07, reg_val)
 
     def get_temperature_offset(self) -> float:
+        """set temperature offset from sensor"""
         reg_val = self._read_register(0x07, 2)
         return TMP117.__scale * int(ustruct.unpack(">h", reg_val)[0])
 
