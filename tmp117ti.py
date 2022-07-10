@@ -1,5 +1,9 @@
 # micropython
-# import array
+# MIT license
+# Copyright (c) 2022 Roman Shevchik   goctaprog@gmail.com
+# mail: goctaprog@gmail.com
+import ustruct
+
 
 #   TMP117 Register Map
 #   ADDRESS     TYPE    RESET       ACRONYM                 REGISTER NAME
@@ -36,10 +40,15 @@ class TMP117:
                  average: int = 1):
         self.bus = bus
         self.bus_addr = address
-        self.conv_mode = _check_value(conversion_mode, range(0, 4), f"Invalid conversion_mode value: {conversion_mode}")
-        self.cct = _check_value(conversion_cycle_time, range(0, 8),
-                                f"Invalid conversion_cycle_time value: {conversion_cycle_time}")
-        self.avg = _check_value(average, range(0, 4), f"Invalid conversion_mode value: {average}")
+        self.conversion_mode = _check_value(conversion_mode, range(0, 4),
+                                            f"Invalid conversion_mode value: {conversion_mode}")
+        self.conversion_cycle_time = _check_value(conversion_cycle_time, range(0, 8),
+                                                  f"Invalid conversion_cycle_time value: {conversion_cycle_time}")
+        self.average = _check_value(average, range(0, 4), f"Invalid conversion_mode value: {average}")
+        self.DR_Alert = self.POL = self.T_nA = False
+        self.data_ready = self.low_alert = self.high_alert = False
+        #
+        self.set_config()
 
     def _read_register(self, reg_addr, bytes_count=2) -> bytes:
         """считывает из регистра датчика значение.
@@ -52,9 +61,60 @@ class TMP117:
         buf = value.to_bytes(bytes_count, byte_order)
         return self.bus.writeto_mem(self.bus_addr, reg_addr, buf)
 
+    def _get_config_reg(self) -> int:
+        """read config from register (2 byte)"""
+        reg_val = self._read_register(0x01, 2)
+        return int(ustruct.unpack(">H", reg_val)[0])
+
+    def _set_config_reg(self, cfg: int) -> int:
+        """write config to register (2 byte)"""
+        return self._write_register(0x01, cfg)
+
+    def _get_config(self) -> int:
+        """читает настройки датчика из регистра.
+        сохраняет их в полях экземпляра класса"""
+        config = self._get_config_reg()
+        self.DR_Alert = config & (0x01 << 2)
+        self.POL = config & (0x01 << 3)
+        self.T_nA = config & (0x01 << 4)
+        self.average = (config & (0b11 << 5)) >> 5
+        self.conversion_cycle_time = (config & (0b111 << 7)) >> 7
+        self.conversion_mode = (config & (0b11 << 10)) >> 10
+        self.data_ready = config & (0x01 << 13)
+        self.low_alert = config & (0x01 << 14)
+        self.high_alert = config & (0x01 << 15)
+        #
+        return config
+
+    def set_config(self):
+        """write current settings to sensor"""
+        tmp = 0
+        tmp |= int(self.DR_Alert) << 2
+        tmp |= int(self.POL) << 3
+        tmp |= int(self.T_nA) << 4
+        tmp |= int(self.average) << 5
+        tmp |= int(self.conversion_cycle_time) << 7
+        tmp |= int(self.conversion_mode) << 10
+        #
+        self._set_config_reg(tmp)
+
     def get_id(self) -> int:
-        pass
+        """Возвращает идентификатор датчика. Правильное значение - 0х55.
+        Returns the ID of the sensor. The correct value is 0x55."""
+        res = self._read_register(0x0F, 2)
+        return int(ustruct.unpack(">H", res)[0])
+
+    def get_temperature(self):
+        """return temperature most recent conversion"""
+        scale = 7.8125E-3
+        reg_val = self._read_register(0x00, 2)
+        return scale * int(ustruct.unpack(">h", reg_val)[0])
 
     def soft_reset(self):
-        """Software reset sensor"""
-        pass
+        """программный сброс датчика.
+        software reset of the sensor"""
+        # self._write_register(0xE0, 0xB6, 1)
+        # Configuration Register (address = 01h) [factory default reset = 0220h]
+        # бит 1. записать 1
+        config = self._get_config_reg()
+        self._set_config_reg(config | 0x01)
