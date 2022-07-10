@@ -1,7 +1,6 @@
 # micropython
 # MIT license
 # Copyright (c) 2022 Roman Shevchik   goctaprog@gmail.com
-# mail: goctaprog@gmail.com
 import ustruct
 
 
@@ -36,6 +35,8 @@ def _check_value(value, valid_range, error_msg):
 
 
 class TMP117:
+    __scale = 7.8125E-3
+
     def __init__(self, bus, address: int = 0x48, conversion_mode: int = 2, conversion_cycle_time: int = 4,
                  average: int = 1):
         self.bus = bus
@@ -98,6 +99,14 @@ class TMP117:
         #
         self._set_config_reg(tmp)
 
+    def set_temperature_offset(self, offset: float) -> int:
+        reg_val = int(offset // TMP117.__scale)
+        return self._write_register(0x07, reg_val)
+
+    def get_temperature_offset(self) -> float:
+        reg_val = self._read_register(0x07, 2)
+        return TMP117.__scale * int(ustruct.unpack(">h", reg_val)[0])
+
     def get_id(self) -> int:
         """Возвращает идентификатор датчика. Правильное значение - 0х55.
         Returns the ID of the sensor. The correct value is 0x55."""
@@ -106,15 +115,11 @@ class TMP117:
 
     def get_temperature(self):
         """return temperature most recent conversion"""
-        scale = 7.8125E-3
         reg_val = self._read_register(0x00, 2)
-        return scale * int(ustruct.unpack(">h", reg_val)[0])
+        return TMP117.__scale * int(ustruct.unpack(">h", reg_val)[0])
 
     def soft_reset(self):
         """программный сброс датчика.
         software reset of the sensor"""
-        # self._write_register(0xE0, 0xB6, 1)
-        # Configuration Register (address = 01h) [factory default reset = 0220h]
-        # бит 1. записать 1
         config = self._get_config_reg()
         self._set_config_reg(config | 0x01)
