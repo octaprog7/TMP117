@@ -1,12 +1,14 @@
 # micropython
 # MIT license
 # Copyright (c) 2022 Roman Shevchik   goctaprog@gmail.com
+import micropython
 import ustruct
 
 # Please read this before use!: https://www.ti.com/product/TMP117
 
 
-def _check_value(value, valid_range, error_msg):
+@micropython.native
+def _check_value(value: int, valid_range, error_msg: str) -> int:
     if value not in valid_range:
         raise ValueError(error_msg)
     return value
@@ -49,6 +51,7 @@ class TMP117:
         """write config to register (2 byte)"""
         return self._write_register(0x01, cfg)
 
+    @micropython.native
     def _get_config(self) -> int:
         """читает настройки датчика из регистра.
         сохраняет их в полях экземпляра класса"""
@@ -65,6 +68,7 @@ class TMP117:
         #
         return config
 
+    @micropython.native
     def set_config(self):
         """write current settings to sensor"""
         tmp = 0
@@ -99,6 +103,7 @@ class TMP117:
         res = self._read_register(0x0F, 2)
         return int(ustruct.unpack(">H", res)[0])
 
+    @micropython.native
     def get_temperature(self):
         """return temperature most recent conversion"""
         reg_val = self._read_register(0x00, 2)
