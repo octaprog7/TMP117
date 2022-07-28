@@ -3,6 +3,8 @@
 # Copyright (c) 2022 Roman Shevchik   goctaprog@gmail.com
 import micropython
 import ustruct
+from sensor_pack import bus_service
+from sensor_pack.base_sensor import BaseSensor, Iterator
 
 # Please read this before use!: https://www.ti.com/product/TMP117
 
@@ -14,13 +16,13 @@ def _check_value(value: int, valid_range, error_msg: str) -> int:
     return value
 
 
-class TMP117:
+class TMP117(BaseSensor, Iterator):
     __scale = 7.8125E-3
 
-    def __init__(self, bus, address: int = 0x48, conversion_mode: int = 2, conversion_cycle_time: int = 4,
+    def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48,
+                 conversion_mode: int = 2, conversion_cycle_time: int = 4,
                  average: int = 1):
-        self.bus = bus
-        self.bus_addr = address
+        super().__init__(adapter, address)
         self.conversion_mode = _check_value(conversion_mode, range(0, 4),
                                             f"Invalid conversion_mode value: {conversion_mode}")
         self.conversion_cycle_time = _check_value(conversion_cycle_time, range(0, 8),
@@ -34,13 +36,12 @@ class TMP117:
     def _read_register(self, reg_addr, bytes_count=2) -> bytes:
         """считывает из регистра датчика значение.
         bytes_count - размер значения в байтах"""
-        return self.bus.readfrom_mem(self.bus_addr, reg_addr, bytes_count)
+        return self.adapter.read_register(self.address, reg_addr, bytes_count)
 
     def _write_register(self, reg_addr, value: int, bytes_count=2, byte_order: str = "big") -> int:
         """записывает данные value в датчик, по адресу reg_addr.
         bytes_count - кол-во записываемых данных"""
-        buf = value.to_bytes(bytes_count, byte_order)
-        return self.bus.writeto_mem(self.bus_addr, reg_addr, buf)
+        return self.adapter.write_register(self.address, reg_addr, value, bytes_count, byte_order)
 
     def _get_config_reg(self) -> int:
         """read config from register (2 byte)"""
@@ -114,3 +115,7 @@ class TMP117:
         software reset of the sensor"""
         config = self._get_config_reg()
         self._set_config_reg(config | 0x01)
+
+    def __next__(self):
+        """Удобное чтение температуры с помощью итератора"""
+        return self.get_temperature()
