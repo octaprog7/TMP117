@@ -7,6 +7,7 @@
 from machine import I2C, Pin
 import tmp117ti
 import time
+from sensor_pack.bus_service import I2cAdapter
 
 if __name__ == '__main__':
     # пожалуйста установите выводы scl и sda в конструкторе для вашей платы, иначе ничего не заработает!
@@ -15,8 +16,9 @@ if __name__ == '__main__':
     # i2c = I2C(0, scl=Pin(13), sda=Pin(12), freq=400_000) № для примера
     # bus =  I2C(scl=Pin(4), sda=Pin(5), freq=100000)   # на esp8266    !
     i2c = I2C(0, freq=400_000)  # on Arduino Nano RP2040 Connect tested
+    adapter = I2cAdapter(i2c)
     # ps - pressure sensor
-    ts = tmp117ti.TMP117(i2c)
+    ts = tmp117ti.TMP117(adapter)
 
     # если у вас посыпались исключения, чего у меня на макетной плате с али и проводами МГТВ не наблюдается,
     # то проверьте все соединения.
