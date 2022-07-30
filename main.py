@@ -4,7 +4,7 @@
 
 
 # Please read this before use!: https://www.ti.com/product/TMP117
-from machine import I2C, Pin
+from machine import I2C
 import tmp117ti
 import time
 from sensor_pack.bus_service import I2cAdapter
@@ -25,12 +25,12 @@ if __name__ == '__main__':
     # Радиотехника - наука о контактах! РТФ-Чемпион!
     res = ts.get_id()
     print(f"chip_id: {hex(res)}")
-    res = ts._get_config()
+    res = ts.get_config()
     print(f"config after __init__: {hex(res)}")
     ts.conversion_cycle_time = 7
     ts.average = 3
     ts.set_config()
-    res = ts._get_config()
+    res = ts.get_config()
     print(f"new config: {hex(res)}")
     print(f"temperature offset: {ts.get_temperature_offset()}")
     ts.set_temperature_offset(3.0)
@@ -41,6 +41,3 @@ if __name__ == '__main__':
         val = ts.get_temperature()
         print(f"Temperature: {val}")
         time.sleep_ms(16_000)
-    
-    
-

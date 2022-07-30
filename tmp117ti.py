@@ -53,7 +53,7 @@ class TMP117(BaseSensor, Iterator):
         return self._write_register(0x01, cfg)
 
     @micropython.native
-    def _get_config(self) -> int:
+    def get_config(self) -> int:
         """читает настройки датчика из регистра.
         сохраняет их в полях экземпляра класса"""
         config = self._get_config_reg()
