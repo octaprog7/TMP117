@@ -22,7 +22,7 @@ class TMP117(BaseSensor, Iterator):
     def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48,
                  conversion_mode: int = 2, conversion_cycle_time: int = 4,
                  average: int = 1):
-        super().__init__(adapter, address)
+        super().__init__(adapter, address, True)
         self.conversion_mode = _check_value(conversion_mode, range(0, 4),
                                             f"Invalid conversion_mode value: {conversion_mode}")
         self.conversion_cycle_time = _check_value(conversion_cycle_time, range(0, 8),
@@ -38,15 +38,16 @@ class TMP117(BaseSensor, Iterator):
         bytes_count - размер значения в байтах"""
         return self.adapter.read_register(self.address, reg_addr, bytes_count)
 
-    def _write_register(self, reg_addr, value: int, bytes_count=2, byte_order: str = "big") -> int:
+    def _write_register(self, reg_addr, value: int, bytes_count=2) -> int:
         """записывает данные value в датчик, по адресу reg_addr.
         bytes_count - кол-во записываемых данных"""
+        byte_order = self._get_byteorder_as_str()[0]
         return self.adapter.write_register(self.address, reg_addr, value, bytes_count, byte_order)
 
     def _get_config_reg(self) -> int:
         """read config from register (2 byte)"""
         reg_val = self._read_register(0x01, 2)
-        return int(ustruct.unpack(">H", reg_val)[0])
+        return self.unpack("H", reg_val)[0]
 
     def _set_config_reg(self, cfg: int) -> int:
         """write config to register (2 byte)"""
@@ -96,19 +97,19 @@ class TMP117(BaseSensor, Iterator):
     def get_temperature_offset(self) -> float:
         """set temperature offset from sensor"""
         reg_val = self._read_register(0x07, 2)
-        return TMP117.__scale * int(ustruct.unpack(">h", reg_val)[0])
+        return TMP117.__scale * self.unpack("h", reg_val)[0]
 
     def get_id(self) -> int:
         """Возвращает идентификатор датчика. Правильное значение - 0х55.
         Returns the ID of the sensor. The correct value is 0x55."""
         res = self._read_register(0x0F, 2)
-        return int(ustruct.unpack(">H", res)[0])
+        return self.unpack("H", res)[0]
 
     @micropython.native
     def get_temperature(self):
         """return temperature most recent conversion"""
         reg_val = self._read_register(0x00, 2)
-        return TMP117.__scale * int(ustruct.unpack(">h", reg_val)[0])
+        return TMP117.__scale * self.unpack("h", reg_val)[0]
 
     def soft_reset(self):
         """программный сброс датчика.
