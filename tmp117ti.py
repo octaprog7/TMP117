@@ -5,6 +5,7 @@ import micropython
 from sensor_pack import bus_service
 from sensor_pack.base_sensor import BaseSensor, Iterator
 
+
 # Please read this before use!: https://www.ti.com/product/TMP117
 
 
@@ -15,12 +16,44 @@ def _check_value(value: int, valid_range, error_msg: str) -> int:
     return value
 
 
+@micropython.native
+def get_conversion_cycle_time(conversion_cycle_time: int, average: int) -> int:
+    """возвращает время преобразования температуры датчиком
+    в зависимости от его настроек"""
+    _ = _check_value(conversion_cycle_time, range(0, 8),
+                     f"Invalid conversion cycle time value: {conversion_cycle_time}")
+    _ = _check_value(average, range(0, 4),
+                     f"Invalid conversion averaging mode value: {average}")
+    avg_0 = 16, 125, 250, 500, 1000, 4000, 8000, 16000  # in [ms]
+    if average < 2:
+        if 0 == conversion_cycle_time and 1 == average:
+            return 125
+        return avg_0[conversion_cycle_time]
+    # average >= 2
+    if conversion_cycle_time < 4:
+        return 500*(average - 2)
+    # conversion_cycle_time >= 4
+    return avg_0[conversion_cycle_time]
+
+
 class TMP117(BaseSensor, Iterator):
     __scale = 7.8125E-3
 
     def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48,
                  conversion_mode: int = 2, conversion_cycle_time: int = 4,
                  average: int = 1):
+        """conversion_mode:
+            00: Continuous conversion (CC)
+            01: Shutdown (SD)
+            10: Continuous conversion (CC), Same as 00
+            11: One-shot conversion (OS)
+
+        average (Conversion averaging modes):
+            00: No averaging
+            01: 8 Averaged conversions
+            10: 32 averaged conversions
+            11: 64 averaged conversions
+            """
         super().__init__(adapter, address, True)
         self.conversion_mode = _check_value(conversion_mode, range(0, 4),
                                             f"Invalid conversion_mode value: {conversion_mode}")
