@@ -2,7 +2,6 @@
 # MIT license
 # Copyright (c) 2022 Roman Shevchik   goctaprog@gmail.com
 import micropython
-import ustruct
 from sensor_pack import bus_service
 from sensor_pack.base_sensor import BaseSensor, Iterator
 
