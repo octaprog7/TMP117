@@ -36,8 +36,10 @@ if __name__ == '__main__':
     ts.set_temperature_offset(3.0)
     print(f"temperature offset: {ts.get_temperature_offset()}")
     ts.set_temperature_offset(0.0)
+    sleep_time = 0
 
     for _ in range(10):
         val = ts.get_temperature()
-        print(f"Temperature: {val}")
-        time.sleep_ms(16_000)
+        print(f"Temperature: {val} \u2103.\tSleep time: {sleep_time} [ms]")
+        sleep_time = tmp117ti.get_conversion_cycle_time(ts.conversion_cycle_time, ts.average)
+        time.sleep_ms(sleep_time)
