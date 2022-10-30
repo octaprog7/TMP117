@@ -7,7 +7,7 @@ from sensor_pack.base_sensor import BaseSensor, Iterator, check_value
 
 
 # Please read this before use!: https://www.ti.com/product/TMP117
-
+# About NIST:   https://e2e.ti.com/support/sensors-group/sensors/f/sensors-forum/1000579/tmp117-tmp117-nist-byte-order-and-eeprom4-address
 
 class TMP117(BaseSensor, Iterator):
     __scale = 7.8125E-3
@@ -179,3 +179,12 @@ class TMP117(BaseSensor, Iterator):
     def __next__(self):
         """Удобное чтение температуры с помощью итератора"""
         return self.get_temperature()
+
+    def get_nist(self) -> tuple:
+        """Читает NIST, число необходимое для идентификации датчика. TI не сообщает о способе вычисления NIST.
+        Дискуссии на эту тему вы найдете на TI E2E форуме.
+        Reads NIST, the number needed to identify the sensor.
+        TI does not report how NIST calculates.
+        You can find discussions on this topic on the TI E2E forum."""
+        addresses = 0x05, 0x08
+        return tuple([self.unpack("H", self._read_register(adr, 2))[0] for adr in addresses])
