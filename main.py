@@ -28,6 +28,9 @@ if __name__ == '__main__':
     # if you're getting EIO exceptions, check all connections!
     res = ts.get_id()
     print(f"chip_id: {hex(res)}")
+    # Таинственное число :-)    mysterious number :-)
+    nist = ts.get_nist()
+    print(f"NIST: {hex(nist[0])} {hex(nist[1])}")
     res = ts.get_config()
     print(f"config after __init__: {hex(res)}")
     ts.conversion_cycle_time = 7
@@ -53,14 +56,14 @@ if __name__ == '__main__':
     print("One-shot conversion mode!")
     ts.conversion_mode = 0x03
     ts.set_config()  # change mode
-    for _ in range(10):
+    for _ in range(100):
         if ts.is_data_ready():
             val = ts.get_temperature()
             print(f"Temperature: {val} \u2103.\tSleep time: {sleep_time} [ms]")
             ts.conversion_mode = 0x03
             ts.set_config()  # re-launch conversion
         sleep_time = ts.get_conversion_cycle_time()
-        print(f"conversion time: {sleep_time} ms")
+        # print(f"conversion time: {sleep_time} ms")
         # тройное время сна. 1/3 времени датчик работает и 2/3 времени датчик находится в режиме сна!
         time.sleep_ms(3 * sleep_time)
 
