@@ -29,8 +29,8 @@ if __name__ == '__main__':
     res = ts.get_id()
     print(f"chip_id: {hex(res)}")
     # Таинственное число :-)    mysterious number :-)
-    nist = ts.get_nist()
-    print(f"NIST: {hex(nist[0])} {hex(nist[1])}")
+    nist = [hex(x) for x in ts.get_nist()]
+    print(f"NIST: {nist}")
     res = ts.get_config()
     print(f"config after __init__: {hex(res)}")
     ts.conversion_cycle_time = 7
