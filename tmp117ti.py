@@ -32,6 +32,7 @@ class TMP117(BaseSensor, Iterator):
             11: 64 averaged conversions
             """
         super().__init__(adapter, address, True)
+        self._buf_2 = bytearray((0 for _ in range(2)))      # для _read_from_into
         self.conversion_mode = check_value(conversion_mode, range(0, 4),
                                            f"Invalid conversion_mode value: {conversion_mode}")
         self.conversion_cycle_time = check_value(conversion_cycle_time, range(0, 8),
@@ -41,6 +42,11 @@ class TMP117(BaseSensor, Iterator):
         self.data_ready = self.low_alert = self.high_alert = False
         #
         self.set_config()
+
+    def _read_buf_from_mem(self, address: int, buf):
+        """Читает из устройства, начиная с адреса address в буфер.
+        Кол-во читаемых байт равно "длине" буфера в байтах!"""
+        return self.adapter.read_buf_from_mem(self.address, address, buf)
 
     @micropython.native
     def get_conversion_cycle_time(self) -> int:
@@ -74,6 +80,7 @@ class TMP117(BaseSensor, Iterator):
     def __del__(self):
         self.conversion_mode = 0x01     # Shutdown (SD)
         self.set_config()
+        del self._buf_2     # возвращаю несколько байт управляющему памятью :-)
 
     def _read_register(self, reg_addr, bytes_count=2) -> bytes:
         """считывает из регистра датчика значение.
@@ -88,8 +95,9 @@ class TMP117(BaseSensor, Iterator):
 
     def _get_config_reg(self) -> int:
         """read config from register (2 byte)"""
-        reg_val = self._read_register(0x01, 2)
-        config = self.unpack("H", reg_val)[0]
+        buf = self._buf_2
+        self._read_buf_from_mem(0x01, buf)      # читаю из памяти устройства в буфер два байта
+        config = self.unpack("H", buf)[0]
         return config
 
     def _set_config_reg(self, cfg: int) -> int:
@@ -139,14 +147,16 @@ class TMP117(BaseSensor, Iterator):
 
     def get_temperature_offset(self) -> float:
         """set temperature offset from sensor"""
-        reg_val = self._read_register(0x07, 2)
-        return TMP117.__scale * self.unpack("h", reg_val)[0]
+        buf = self._buf_2
+        self._read_buf_from_mem(0x07, buf)  # читаю из памяти устройства в буфер два байта
+        return TMP117.__scale * self.unpack("h", buf)[0]
 
     def get_id(self) -> int:
         """Возвращает идентификатор датчика. Правильное значение - 0х55.
         Returns the ID of the sensor. The correct value is 0x55."""
-        res = self._read_register(0x0F, 2)
-        return self.unpack("H", res)[0]
+        buf = self._buf_2
+        self._read_buf_from_mem(0x0F, buf)  # читаю из памяти устройства в буфер два байта
+        return self.unpack("H", buf)[0]
 
     def _get_flags(self) -> tuple:
         """Return tuple: (EEPROM_Busy, Data_Ready, LOW_Alert) flags"""
@@ -167,8 +177,9 @@ class TMP117(BaseSensor, Iterator):
     @micropython.native
     def get_temperature(self) -> float:
         """return temperature most recent conversion"""
-        reg_val = self._read_register(0x00, 2)
-        return TMP117.__scale * self.unpack("h", reg_val)[0]
+        buf = self._buf_2
+        self._read_buf_from_mem(0x00, buf)  # читаю из памяти устройства в буфер два байта
+        return TMP117.__scale * self.unpack("h", buf)[0]
 
     def soft_reset(self):
         """программный сброс датчика.
