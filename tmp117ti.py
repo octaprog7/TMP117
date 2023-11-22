@@ -43,10 +43,11 @@ class TMP117(BaseSensor, Iterator):
         #
         self.set_config()
 
-    def _read_buf_from_mem(self, address: int, buf):
+    def _read_buf_from_mem(self, address: int, buf) -> bytes:
         """Читает из устройства, начиная с адреса address в буфер.
         Кол-во читаемых байт равно "длине" буфера в байтах!"""
-        return self.adapter.read_buf_from_mem(self.address, address, buf)
+        self.adapter.read_buf_from_mem(self.address, address, buf)
+        return buf
 
     @micropython.native
     def get_conversion_cycle_time(self) -> int:
@@ -81,11 +82,6 @@ class TMP117(BaseSensor, Iterator):
         self.conversion_mode = 0x01     # Shutdown (SD)
         self.set_config()
         del self._buf_2     # возвращаю несколько байт управляющему памятью :-)
-
-    def _read_register(self, reg_addr, bytes_count=2) -> bytes:
-        """считывает из регистра датчика значение.
-        bytes_count - размер значения в байтах"""
-        return self.adapter.read_register(self.address, reg_addr, bytes_count)
 
     def _write_register(self, reg_addr, value: int, bytes_count=2) -> int:
         """записывает данные value в датчик, по адресу reg_addr.
@@ -198,4 +194,4 @@ class TMP117(BaseSensor, Iterator):
         TI does not report how NIST calculates.
         You can find discussions on this topic on the TI E2E forum."""
         addresses = 0x05, 0x08
-        return tuple([self.unpack("H", self._read_register(adr, 2))[0] for adr in addresses])
+        return tuple([self.unpack("H", self._read_buf_from_mem(adr, self._buf_2))[0] for adr in addresses])
