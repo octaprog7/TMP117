@@ -9,7 +9,7 @@ Supply voltage TMP117 3.3 or 5.0 volts! Use four wires to connect (I2C).
 3. SDA
 4. SCL
 
-Upload micropython firmware to the NANO(ESP, etc) board, and then two files: main.py and tmp117ti.py. 
+Upload micropython firmware to the NANO(ESP, etc) board, and then files: main.py, tmp117timod.py and sensor_pack_2 folder. 
 Then open main.py in your IDE and run it.
 
 # Pictures
