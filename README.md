@@ -17,3 +17,6 @@ Then open main.py in your IDE and run it.
 ![alt text](https://github.com/octaprog7/TMP117/blob/master/ide117.png)
 ## Breadboard
 ![alt text](https://github.com/octaprog7/TMP117/blob/master/tmp117board.jpg)
+
+## Note
+If you liked my software, please be generous and give it a star!
