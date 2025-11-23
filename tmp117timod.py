@@ -9,7 +9,6 @@ from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Itera
 flags_tmp117 = namedtuple("flags_tmp117", "eeprom_busy data_ready low_alert high_alert")
 id_tmp117 = namedtuple("id_tmp117", "revision_number device_id")
 nist_tmp117 = namedtuple("nist_tmp117", "word_0 word_1")
-data_status_tmp117 = namedtuple("data_status_tmp117", "temp_ready press_ready cmd_decoder_ready")
 
 # Please read this before use!: https://www.ti.com/product/TMP117
 # About NIST:   https://e2e.ti.com/support/sensors-group/sensors/f/sensors-forum/1000579/tmp117-tmp117-nist-byte-order-and-eeprom4-address
@@ -167,7 +166,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         """программный сброс датчика.
         software reset of the sensor"""
         config = self._get_config_reg()
-        self._set_config_reg(config | 0x01)
+        self._set_config_reg(config | 0x02)
 
     def get_flags(self) -> flags_tmp117:
         """Return tuple: (EEPROM_Busy, Data_Ready, LOW_Alert) flags"""
