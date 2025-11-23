@@ -92,7 +92,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
 
     @micropython.native
     def get_config(self) -> int:
-        """Читает настройки датчика из регистра. Cохраняет(!) их в полях экземпляра класса."""
+        """Читает настройки датчика из регистра. Сохраняет(!) их в полях экземпляра класса."""
         config = self._get_config_reg()
         self.DR_Alert = config & (0x01 << 2)
         self.POL = config & (0x01 << 3)
