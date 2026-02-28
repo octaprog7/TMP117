@@ -55,7 +55,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         avg_0 = 16, 125, 250, 500, 1000, 4000, 8000, 16000  # in [ms]
         if 0x03 == self.conversion_mode:    # One-shot conversion mode
             # Когда биты MOD[1:0] в регистре конфигурации установлены на 11, TMP117 будет выполнять преобразование
-            # температуры, называемое однократным преобразованием. После того, как устройство завершит однократное
+            # температуры, называемое однократным преобразованием. После того как устройство завершит однократное
             # преобразование, оно переходит в режим отключения с низким энергопотреблением. Однократный цикл
             # преобразования, в отличие от непрерывного режима преобразования, состоит только из активного времени
             # преобразования и не имеет периода ожидания. Таким образом, продолжительность однократного преобразования
@@ -76,7 +76,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
     def __del__(self):
         self.conversion_mode = 0x01     # Shutdown (SD)
         self.set_config()
-        del self._buf_2     # возвращаю несколько байт управляющему памятью :-)
+        del self._buf_2     # возвращаю несколько байт управляющему памятью:-)
 
     def _get_config_reg(self) -> int:
         """read config from register (2 byte)"""
@@ -122,7 +122,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
     def start_measurement(self, single_shot: bool = False, conv_cycle_time: int = 4,
                           average_mode: int = 1, refresh_conf: bool = True):
         """Настраивает работу датчика в желаемом режиме.
-        Если refresh_conf в Истина, то после вызова метода set_config, вызывается метод get_config,
+        Если refresh_conf Истина, то после вызова метода set_config, вызывается метод get_config,
         обновляющий значения текущих настроек в полях экземпляра класса."""
         self.conversion_cycle_time = check_value(conv_cycle_time, range(8),
                                                  f"Invalid conversion_cycle_time value: {conv_cycle_time}")
