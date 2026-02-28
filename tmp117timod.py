@@ -2,6 +2,7 @@
 # MIT license
 
 import micropython
+from micropython import const
 from collections import namedtuple
 from sensor_pack_2 import bus_service
 from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Iterator, check_value
@@ -14,7 +15,7 @@ nist_tmp117 = namedtuple("nist_tmp117", "word_0 word_1")
 # About NIST:   https://e2e.ti.com/support/sensors-group/sensors/f/sensors-forum/1000579/tmp117-tmp117-nist-byte-order-and-eeprom4-address
 
 class TMP117(IBaseSensorEx, IDentifier, Iterator):
-    __scale = 7.8125E-3
+    scale = const(7.8125E-3)
 
     def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48):
                  #conversion_mode: int = 2, conversion_cycle_time: int = 4,
@@ -142,7 +143,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         For example +/- 10.
         Control it yourself!
         """
-        reg_val = int(offset // TMP117.__scale)
+        reg_val = int(offset // TMP117.scale)
         return self._connection.write_reg(reg_addr=0x07, value=reg_val, bytes_count=2)
 
     def get_temperature_offset(self) -> float:
@@ -151,7 +152,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         _conn = self._connection
         # читаю из памяти устройства в буфер два байта
         _conn.read_buf_from_mem(address=0x07, buf=buf)
-        return TMP117.__scale * _conn.unpack(fmt_char="h", source=buf)[0]
+        return TMP117.scale * _conn.unpack(fmt_char="h", source=buf)[0]
 
     def get_id(self) -> id_tmp117:
         """Возвращает идентификатор датчика. Returns the ID of the sensor."""
@@ -192,7 +193,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         _conn = self._connection
         # читаю из памяти устройства в буфер два байта
         _conn.read_buf_from_mem(address=0x00, buf=buf)
-        return TMP117.__scale * _conn.unpack(fmt_char="h", source=buf)[0]
+        return TMP117.scale * _conn.unpack(fmt_char="h", source=buf)[0]
 
     def __next__(self):
         """Удобное чтение температуры с помощью итератора"""
