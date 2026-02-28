@@ -37,7 +37,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
             11: 64 averaged conversions
             """
         self._connection = DeviceEx(adapter=adapter, address=address, big_byte_order=True)
-        self._buf_2 = bytearray((0 for _ in range(2)))      # для _read_from_into
+        self._buf_2 = bytearray(2)      # для _read_from_into
         self.conversion_mode = 2
         self.conversion_cycle_time = 4
         self.average = 1
