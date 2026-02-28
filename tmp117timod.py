@@ -153,7 +153,20 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         return _scale * _conn.unpack(fmt_char="h", source=buf)[0]
 
     def get_id(self) -> id_tmp117:
-        """Возвращает идентификатор датчика. Returns the ID of the sensor."""
+        """Возвращает идентификатор устройства TMP117.
+
+        Читает регистр Device_ID (адрес 0x0F), содержащий:
+        - Revision number (биты 15:12) — версия ревизии чипа
+        - Device ID (биты 11:0) — должен быть 0x117 для TMP117
+
+        Returns:
+            id_tmp117: Именованный кортеж с полями:
+                - revision_number: 4-битная версия ревизии (0–15)
+                - device_id: 12-битный идентификатор устройства (должен быть 0x117)
+
+        Note:
+        - Device ID = 0x117 подтверждает, что подключён TMP117
+        - Проверка device_id полезна для верификации подключения датчика"""
         buf = self._buf_2
         _conn = self._connection
         # читаю из памяти устройства в буфер два байта
@@ -224,12 +237,12 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         Warning:
             Не перезаписывайте EEPROM1 (word_0, адрес 0x05)!
             Это нарушит NIST-трассируемость калибровки датчика.
-            Согласно разделу 7.6.7 даташита:
+            Согласно разделу 7.6.7 дата шита:
 
         Note:
             - Уникальный ID используется для трассировки калибровки к стандартам NIST
             - TMP117 тестируется на производстве с NIST-трассируемым оборудованием
-            - Верифицировано по стандартам ISO/IEC 17025 (раздел 7.5.1.1 даташита)
+            - Верифицировано по стандартам ISO/IEC 17025 (раздел 7.5.1.1 дата шита)
             - Общий объём EEPROM для ID: 48 бит (3 регистра × 16 бит)"""
         _conn = self._connection
         _gen = (_conn.unpack(fmt_char="H", source=_conn.read_buf_from_mem(adr, self._buf_2))[0] for adr in _UID_EEPROM_ADDR)
