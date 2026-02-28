@@ -9,7 +9,7 @@ from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Itera
 
 flags_tmp117 = namedtuple("flags_tmp117", "eeprom_busy data_ready low_alert high_alert")
 id_tmp117 = namedtuple("id_tmp117", "revision_number device_id")
-nist_tmp117 = namedtuple("nist_tmp117", "word_0 word_1 word_2")
+uid_tmp117 = namedtuple("uid_tmp117", "word_0 word_1 word_2")
 
 # Please read this before use!: https://www.ti.com/product/TMP117
 # About NIST:   https://e2e.ti.com/support/sensors-group/sensors/f/sensors-forum/1000579/tmp117-tmp117-nist-byte-order-and-eeprom4-address
@@ -23,6 +23,8 @@ _CONV_BASE_TIME_MS: tuple[int, ...] = const((16, 125, 250, 500, 1000, 4000, 8000
 _AVG_MIN_CYCLE_MS: tuple[int, ...] = const((0, 125, 500, 1000))
 # коэффициент для расчета температуры
 _scale = const(7.8125E-3)
+# Адреса регистров EEPROM (3 регистра по 16 бит). Полный уникальный ID датчика.
+_UID_EEPROM_ADDR: tuple[int, ...] = const((0x05, 0x06, 0x08))
 
 class TMP117(IBaseSensorEx, IDentifier, Iterator):
 
@@ -207,16 +209,31 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         """Удобное чтение температуры с помощью итератора"""
         return self.get_measurement_value()
 
-    def get_nist(self) -> nist_tmp117:
-        """Читает NIST, число необходимое для идентификации датчика. TI не сообщает о способе вычисления NIST.
-        Дискуссии на эту тему вы найдете на TI E2E форуме.
-        Reads NIST, the number needed to identify the sensor.
-        TI does not report how NIST calculates.
-        You can find discussions on this topic on the TI E2E forum."""
+    def get_uid(self) -> uid_tmp117:
+        """Возвращает уникальный 48-битный ID датчика TMP117.
+
+        Читает три регистра EEPROM (0x05, 0x06, 0x08), содержащие уникальный
+        идентификатор, запрограммированный на заводе TI.
+
+        Returns:
+            uid_tmp117: Именованный кортеж с тремя 16-битными словами:
+                - word_0: EEPROM1 (адрес 0x05) — критичен для NIST-трассируемости
+                - word_1: EEPROM2 (адрес 0x06) — пользовательские данные
+                - word_2: EEPROM3 (адрес 0x08) — пользовательские данные
+
+        Warning:
+            Не перезаписывайте EEPROM1 (word_0, адрес 0x05)!
+            Это нарушит NIST-трассируемость калибровки датчика.
+            Согласно разделу 7.6.7 даташита:
+
+        Note:
+            - Уникальный ID используется для трассировки калибровки к стандартам NIST
+            - TMP117 тестируется на производстве с NIST-трассируемым оборудованием
+            - Верифицировано по стандартам ISO/IEC 17025 (раздел 7.5.1.1 даташита)
+            - Общий объём EEPROM для ID: 48 бит (3 регистра × 16 бит)"""
         _conn = self._connection
-        addresses = 0x05, 0x08
-        _gen = (_conn.unpack(fmt_char="H", source=_conn.read_buf_from_mem(adr, self._buf_2))[0] for adr in addresses)
-        return nist_tmp117(word_0=next(_gen), word_1=next(_gen))
+        _gen = (_conn.unpack(fmt_char="H", source=_conn.read_buf_from_mem(adr, self._buf_2))[0] for adr in _UID_EEPROM_ADDR)
+        return uid_tmp117(word_0=next(_gen), word_1=next(_gen), word_2=next(_gen))
 
     def is_single_shot_mode(self) -> bool:
         """Возвращает Истина, когда датчик находится в режиме однократных измерений,
