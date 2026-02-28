@@ -14,6 +14,15 @@ nist_tmp117 = namedtuple("nist_tmp117", "word_0 word_1")
 # Please read this before use!: https://www.ti.com/product/TMP117
 # About NIST:   https://e2e.ti.com/support/sensors-group/sensors/f/sensors-forum/1000579/tmp117-tmp117-nist-byte-order-and-eeprom4-address
 
+# Базовое время цикла преобразования для CONV[2:0] при AVG=00 (в мс)
+# Индексы: 0 1 2 3 4 5 6 7
+_CONV_BASE_TIME_MS: tuple[int, ...] = const((16, 125, 250, 500, 1000, 4000, 8000, 16000))
+# Минимальное время цикла, требуемое режимом усреднения AVG[1:0] (в мс)
+# Если время усреднения больше базового CONV, цикл удлиняется (standby = 0)
+# Индексы: b00 b01 b10 b11
+_AVG_MIN_CYCLE_MS: tuple[int, ...] = const((0, 125, 500, 1000))
+
+
 class TMP117(IBaseSensorEx, IDentifier, Iterator):
     scale = const(7.8125E-3)
 
@@ -49,30 +58,17 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
     @micropython.native
     def get_conversion_cycle_time(self) -> int:
         """Возвращает время преобразования температуры датчиком в миллисекундах(!) в зависимости от его настроек."""
-        _ = check_value(self.conversion_cycle_time, range(0, 8),
+        conv = check_value(self.conversion_cycle_time, range(8),
                         f"Invalid conversion cycle time value: {self.conversion_cycle_time}")
-        _ = check_value(self.average, range(0, 4),
+        avg = check_value(self.average, range(4),
                         f"Invalid conversion averaging mode value: {self.average}")
-        avg_0 = 16, 125, 250, 500, 1000, 4000, 8000, 16000  # in [ms]
-        if 0x03 == self.conversion_mode:    # One-shot conversion mode
-            # Когда биты MOD[1:0] в регистре конфигурации установлены на 11, TMP117 будет выполнять преобразование
-            # температуры, называемое однократным преобразованием. После того как устройство завершит однократное
-            # преобразование, оно переходит в режим отключения с низким энергопотреблением. Однократный цикл
-            # преобразования, в отличие от непрерывного режима преобразования, состоит только из активного времени
-            # преобразования и не имеет периода ожидания. Таким образом, продолжительность однократного преобразования
-            # зависит только от битовых настроек AVG. Биты CONV не влияют на продолжительность
-            # однократного преобразования.
-            s_shot = 16, 125, 500, 1000
-            return s_shot[self.average]
-        if self.average < 2:
-            if 0 == self.conversion_cycle_time and 1 == self.average:
-                return 125
-            return avg_0[self.conversion_cycle_time]
-        # average >= 2
-        if self.conversion_cycle_time < 4:
-            return 500 * (self.average - 2)
-        # conversion_cycle_time >= 4
-        return avg_0[self.conversion_cycle_time]
+        # запланированное время цикла из настроек CONV
+        base_time = _CONV_BASE_TIME_MS[conv]
+        # минимально необходимое время для выбранного усреднения AVG
+        min_required_time = _AVG_MIN_CYCLE_MS[avg]
+        # Реальное время = максимум из двух (общее время цикла не может быть меньше времени,
+        # которое физически требуется датчику на выполнение всех измерений для усреднения.)
+        return base_time if base_time > min_required_time else min_required_time
 
     def __del__(self):
         self.conversion_mode = 0x01     # Shutdown (SD)
