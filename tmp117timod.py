@@ -6,6 +6,7 @@ from micropython import const
 from collections import namedtuple
 from sensor_pack_2 import bus_service
 from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Iterator, check_value
+from sensor_pack_2.comp_interface import ICompInterface
 
 flags_tmp117 = namedtuple("flags_tmp117", "eeprom_busy data_ready low_alert high_alert")
 id_tmp117 = namedtuple("id_tmp117", "revision_number device_id")
@@ -26,7 +27,7 @@ _scale = const(7.8125E-3)
 # Адреса регистров EEPROM (3 регистра по 16 бит). Полный уникальный ID датчика.
 _UID_EEPROM_ADDR: tuple[int, ...] = const((0x05, 0x06, 0x08))
 
-class TMP117(IBaseSensorEx, IDentifier, Iterator):
+class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
     def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48):
                  #conversion_mode: int = 2, conversion_cycle_time: int = 4,
@@ -242,14 +243,10 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         _gen = (0 != (config & (0x01 << i)) for i in range(12, 16))
         return flags_tmp117(eeprom_busy=next(_gen), data_ready=next(_gen), low_alert=next(_gen), high_alert=next(_gen))
 
-    def get_data_status(self) -> bool:
+    def get_data_status(self, raw: bool = True) -> bool:
         """Флаг готовности данных. Этот флаг указывает, что преобразование завершено и регистр температуры
         может быть прочитан. Каждый раз, когда считывается регистр температуры или регистр конфигурации,
-        этот бит сбрасывается!
-        Data ready flag.
-        This flag indicates that the conversion is complete and the
-        temperature register can be read. Every time the temperature
-        register or configuration register is read, this bit is cleared."""
+        этот бит сбрасывается!"""
         return self.get_flags().data_ready
 
     @micropython.native
@@ -315,7 +312,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         return self.conversion_mode in (0, 2)
 
     # ========================================================================
-    # TCompInterface Implementation (Температурный компаратор)
+    # ICompInterface Implementation (Температурный компаратор)
     # ========================================================================
 
     @micropython.native
