@@ -313,3 +313,119 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         производимых автоматически. Процесс запускается методом start_measurement"""
         self.get_config()
         return self.conversion_mode in (0, 2)
+
+    # ========================================================================
+    # TCompInterface Implementation (Температурный компаратор)
+    # ========================================================================
+
+    @micropython.native
+    def set_comp_mode(self, mode: int | None = None, level: bool = False) -> int:
+        """
+        Установить режим работы встроенного температурного компаратора.
+
+        Аргументы:
+            mode (int): Режим работы компаратора.
+                0 — Режим компаратора (Comparator/Therm mode).
+                    Вывод меняет уровень, пока температура за пределами диапазона.
+                    Возврат в норму автоматически при восстановлении температуры.
+                    Рекомендуется для аппаратных термостатов.
+                1 — Режим прерывания (Interrupt/Alert mode).
+                    Вывод меняет уровень при выходе за пределы и удерживает его
+                    до чтения регистра состояния (подтверждение прерывания).
+                    Рекомендуется для генерации прерываний микроконтроллера.
+            level (bool): Уровень сигнала на выходе ALERT при срабатывании.
+                False — Низкий уровень (0V при тревоге, требуется подтяжка к V+)
+                True — Высокий уровень (V+ при тревоге)
+
+        Возвращает:
+            int: Текущий установленный режим (0 или 1).
+            Если mode=None, возвращает текущий режим без изменений.
+
+        Note:
+            - Выход компаратора — открытый сток (Open-Drain), требуется подтяжка (4.7–10 кОм)
+            - level=False означает низкий уровень при тревоге (0V)
+            - level=True означает высокий уровень при тревоге (V+)
+        """
+        if mode is not None:
+            mode = check_value(mode, range(2), f"Invalid comparator mode: {mode}")
+            # T/nA бит (бит 4): 1=Therm (режим 0), 0=Alert (режим 1)
+            self.T_nA = (mode == 0)
+            self.POL = level
+            self.set_config()
+
+        # Возвращаем текущий режим
+        return 0 if self.T_nA else 1
+
+    @micropython.native
+    def set_thresholds(self, rng: range | None = None) -> range:
+        """
+        Устанавливает нижний и верхний пороги температуры (Tmin, Tmax).
+
+        Аргументы:
+            rng (range): пороги температуры в градусах Цельсия (rng.start, rng.stop).
+                start < stop обязательно!
+                Диапазон: -256 °C до +255 °C (ограничено датчиком)
+                Разрешение: 1 °C (целые градусы для совместимости)
+            Если rng=None, возвращает текущие пороги без изменений.
+
+        Возвращает:
+            range: Текущие пороги температуры (start=Tmin, stop=Tmax).
+
+        Note:
+            - Формат данных: 16-bit two's complement (как регистр температуры)
+            - Значения округляются до ближайшего целого градуса
+            - При выходе за диапазон значения ограничиваются мин/макс датчика
+
+        Warning:
+            - В режиме компаратора (mode=0): Tmin работает как гистерезис для сброса
+            - В режиме прерывания (mode=1): оба порога работают независимо
+        """
+        if rng is not None:
+            t_min = check_value(rng.start, range(-256, 256),
+                                f"Tmin out of range: {rng.start}")
+            t_max = check_value(rng.stop, range(-256, 256),
+                                f"Tmax out of range: {rng.stop}")
+
+            if t_min >= t_max:
+                raise ValueError(f"Tmin ({t_min}) must be less than Tmax ({t_max})")
+
+            # Конвертация в регистровые значения (LSB = 7.8125 m°C)
+            # Целые градусы → raw = degrees / 0.0078125
+            t_min_raw = int(t_min / _scale) & 0xFFFF
+            t_max_raw = int(t_max / _scale) & 0xFFFF
+
+            # Запись в регистры (big-endian, 16-bit)
+            self.get_set_reg(addr=0x03, format_value=None, value=t_min_raw)  # T_LOW
+            self.get_set_reg(addr=0x02, format_value=None, value=t_max_raw)  # T_HIGH
+
+        # Чтение текущих порогов
+        t_low_raw = self.get_set_reg(addr=0x03, format_value="h")  # signed
+        t_high_raw = self.get_set_reg(addr=0x02, format_value="h")  # signed
+
+        # Конвертация обратно в целые градусы
+        t_min = int(t_low_raw * _scale)
+        t_max = int(t_high_raw * _scale)
+
+        return range(t_min, t_max)
+
+    @micropython.native
+    def is_over_threshold(self) -> bool:
+        """
+        Проверить, превышен ли верхний порог температуры (T > Tmax).
+
+        Возвращает:
+            bool: True, если температура превысила Tmax (тревога), False — иначе.
+
+        Note:
+            - В режиме прерывания (mode=1) вызов этого метода может подтвердить тревогу
+              и вернуть вывод в состояние нормы (чтение регистра сбрасывает флаг)
+            - В режиме компаратора (mode=0) состояние сбрасывается автоматически при T < Tmin
+            - Метод читает регистр конфигурации (бит 15 = HIGH_Alert)
+
+        Warning:
+            В режиме прерывания повторный вызов сразу после срабатывания
+            может вернуть False (флаг уже сброшен чтением)!
+        """
+        config = self._get_config_reg()
+        # Бит 15 = HIGH_Alert
+        return bool(config & (0x01 << 15))

@@ -25,35 +25,35 @@ class BusAdapter:
         return type(self.bus)
 
     def read_register(self, device_addr: int | Pin, reg_addr: int, bytes_count: int) -> bytes:
-        """считывает из регистра датчика значение.
-        device_addr - адрес датчика на шине. Для шины SPI это физический вывод MCU!
-        reg_addr - адрес регистра в адресном пространстве датчика.
+        """считывает из регистра датчика значение;
+        device_addr - адрес датчика на шине. Для шины SPI это физический вывод MCU;
+        reg_addr - адрес регистра в адресном пространстве датчика;
         bytes_count - размер значения в байтах."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def write_register(self, device_addr: int | Pin, reg_addr: int, value: int | bytes | bytearray,
                        bytes_count: int, byte_order: str):
         """записывает данные value в датчик, по адресу reg_addr.
         bytes_count - кол-во записываемых байт из value.
         byte_order - порядок расположения байт в записываемом значении."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def read(self, device_addr: int | Pin, n_bytes: int) -> bytes:
         """Читает из устройства на шине с адресом device_addr, n_bytes байт.
         Возвращает экземпляр класса типа bytes"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def read_to_buf(self, device_addr: int | Pin, buf: bytearray) -> bytes:
         """Читает из устройства на шине, с адресом device_addr, кол-во байт, равное длине буфера buf.
         Возвращает ссылку на buf"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def write(self, device_addr: int | Pin, buf: bytes):
         """Записывает в устройство на шине все байты из буфера buf"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def write_const(self, device_addr: int | Pin, val: int, count: int):
-        """Отправляет пакет байт со значение val количеством count на шину.
+        """Отправляет пакет байт со значением val количеством count на шину.
         Часто, при работе с дисплеями или памятью, требуется заполнение экрана/области
         постоянным значением. Для этого и предназначен этот метод!
         Вызов его для сравнительно медленных шин - плохая идея!"""
@@ -62,7 +62,7 @@ class BusAdapter:
         # bl = val.bit_length()     # bit_length() отсутствует в MicroPython
         bl = mpy_bl(val)
         if bl > 8:
-            raise ValueError(f"Значение должно быть не более 8 бит! Текущее:{bl}")
+            raise ValueError(f"The value must take no more than 8 bits! Current: {bl}")
         _max = 16
         if count < _max:
             _max = count
@@ -78,14 +78,14 @@ class BusAdapter:
             self.write(device_addr, b)
 
     def read_buf_from_memory(self, device_addr: int | Pin, mem_addr, buf, address_size: int):
-        """Читает из устройства с адресом device_addr в буфер buf, начиная с адреса в устройстве mem_addr.
-        Количество считываемых байт определяется длинной буфера buf.
+        """Читает из устройства с адресом device_addr в буфер buf, начиная с адреса в устройстве mem_addr;
+        Количество считываемых байт определяется длиной буфера buf;
         address_size - определяет размер адреса в байтах. (в ESP8266 этот аргумент не
         распознается и размер адреса всегда равен 1 (8 бит))."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def write_buf_to_memory(self, device_addr: int | Pin, mem_addr, buf):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class I2cAdapter(BusAdapter):
@@ -107,7 +107,7 @@ class I2cAdapter(BusAdapter):
         return self.bus.writeto_mem(device_addr, reg_addr, buf)
 
     def read_register(self, device_addr: int, reg_addr: int, bytes_count: int) -> bytes:
-        """считывает из регистра датчика значение.
+        """считывает из регистра датчика значение;
         bytes_count - размер значения в байтах"""
         return self.bus.readfrom_mem(device_addr, reg_addr, bytes_count)
 
@@ -123,8 +123,8 @@ class I2cAdapter(BusAdapter):
         return self.bus.writeto(device_addr, buf)
 
     def read_buf_from_memory(self, device_addr: int, mem_addr, buf, address_size: int = 1):
-        """Читает из устройства с адресом device_addr в буфер buf, начиная с адреса в устройстве mem_addr.
-        Количество считываемых байт определяется длинной буфера buf.
+        """Читает из устройства с адресом device_addr в буфер buf, начиная с адреса в устройстве mem_addr;
+        Количество считываемых байт определяется длиной буфера buf;
         address_size - определяет размер адреса в байтах. (в ESP8266 этот аргумент не распознается и размер адреса
         всегда равен 1 (8 бит)).
         Расширение возможностей базового класса."""
@@ -142,7 +142,7 @@ class SpiAdapter(BusAdapter):
     """Адаптер шины SPI"""
     def __init__(self, bus: SPI, data_mode: Pin = None):
         """Параметр data_mode представляет собой вывод MCU, который используется для установки флага,
-        что посылка является данными (high) или командой (low). Например это необходимо при обмене с ILI9481."""
+        что посылка является данными (high) или командой (low). Например, это необходимо при обмене с ILI9481."""
         super().__init__(bus)
         # вывод MCU для режима данных
         self.data_mode_pin = data_mode
@@ -193,7 +193,10 @@ class SpiAdapter(BusAdapter):
 
     def write(self, device_addr: Pin, buf: bytes):
         """Параметр data_packet представляет собой признак того, что посылка является данными (high) или командой (low).
-        Например это необходимо при обмене ILI9481."""
+        Например это необходимо при обмене ILI9481.
+        Write the bytes contained in buf. Returns None.
+        The data_packet parameter is an indication that the package is data (high) or command (low).
+         For example, this is necessary when exchanging ILI9481."""
         try:
             device_addr.value(0)   # chip select
             if self.use_data_mode_pin and self.data_mode_pin:
@@ -211,7 +214,11 @@ class SpiAdapter(BusAdapter):
 
         Параметр data_packet представляет собой признак того, что посылка является данными (high) или командой (low).
         Например это необходимо при обмене ILI9481.
-        Расширение возможностей базового класса."""
+        Расширение возможностей базового класса.
+        Write the bytes from write_buf while reading into read_buf. The buffers can be the same or different,
+        but both buffers must have the same length. Returns None.
+        The data_packet parameter is an indication that the package is data (high) or command (low).
+         For example, this is necessary when exchanging ILI9481."""
         try:
             device_addr.value(0)   # chip select
             if self.use_data_mode_pin and self.data_mode_pin:
@@ -222,11 +229,11 @@ class SpiAdapter(BusAdapter):
 
     def read_buf_from_memory(self, device_addr: Pin, mem_addr, buf, address_size: int):
         """Читает из устройства с адресом device_addr в буфер buf, начиная с адреса в устройстве mem_addr.
-        Количество считываемых байт определяется длинной буфера buf."""
+        Количество считываемых байт определяется длиной буфера buf."""
         try:
             device_addr.value(0)  # chip select
             # пока нет реализации!!!
-            raise NotImplementedError()
+            raise NotImplementedError
         finally:
             device_addr.value(1)
 
@@ -236,6 +243,6 @@ class SpiAdapter(BusAdapter):
             # подготовка буфера к пересылке
             self._call_prepare(buf)
             # пока нет реализации!!!
-            raise NotImplementedError()
+            raise NotImplementedError
         finally:
             device_addr.value(1)

@@ -1,6 +1,6 @@
 # micropython
 # MIT license
-
+# Copyright (c) 2022 Roman Shevchik   goctaprog@gmail.com
 import struct
 import micropython
 from sensor_pack_2 import bus_service
@@ -17,7 +17,7 @@ def check_value(value: int | None, valid_range: range | tuple, error_msg: str) -
 
 
 def get_error_str(val_name: str, val: int, rng: range | tuple) -> str:
-    """Возвращает подробное сообщение об ошибке.
+    """Возвращает подробное сообщение об ошибке;
     val_name - имя переменной в коде;
     val - значение переменной val_name;
     rng - допустимый диапазон переменной"""
@@ -141,7 +141,7 @@ class BaseSensor(Device):
     """Класс - основа датчика с дополнительными методами"""
 
     def get_id(self):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def soft_reset(self):
         raise NotImplementedError()
@@ -169,11 +169,11 @@ class ITemperatureSensor:
     """Вспомогательный или основной датчик температуры"""
 
     def enable_temp_meas(self, enable: bool = True):
-        """Включает измерение температуры при enable в Истина
+        """Включает измерение температуры если enable Истина
         Для переопределения программистом!!!"""
         raise NotImplementedError()
 
-    def get_temperature(self) -> int | float:
+    def get_temperature(self) -> [int, float]:
         """Возвращает температуру корпуса датчика в градусах Цельсия!
         Для переопределения программистом!!!"""
         raise NotImplementedError()
@@ -187,7 +187,7 @@ class IPower:
 
     def set_power_level(self, level: int | None = 0) -> int:
         """level >=0 or None
-        Устанавливает режим мощности.
+        Устанавливает режим мощности;
         level равен 0 - устройство выполняет все свои функции (максимальное энергопотребление)
         level равен maximum (на ваш выбор) - устройство выполняет минимум своих функций (минимальное энергопотребление)
         Возвращает текущий уровень потребления устройства.
@@ -205,6 +205,7 @@ class IDentifier:
         raise NotImplementedError()
 
     def soft_reset(self):
+        """Программный сброс устройства"""
         raise NotImplementedError()
 
 
@@ -220,14 +221,19 @@ class IBaseSensorEx:
         """Настраивает параметры датчика и запускает процесс измерения"""
         raise NotImplementedError()
 
-    def get_measurement_value(self, value_index: int):
+    def get_measurement_value(self, value_index: int | None):
         """Возвращает измеренное датчиком значение(значения) по его индексу/номеру."""
         raise NotImplementedError()
 
-    def get_data_status(self):
+    def get_data_status(self, raw: bool = True):
         """Возвращает состояние готовности данных для считывания?
-        Тип возвращаемого значения выбирайте сами!"""
+        Тип возвращаемого значения выбирайте сами!
+        Если raw Истина, то возвращается сырое/не обработанное значение состояния!"""
         raise NotImplementedError()
+
+    #def get_config(self, raw: bool = True):
+    #    """Возвращает текущие настройки датчика. Если raw - в Истина, то возвращается int, иначе произвольный тип."""
+    #    raise NotImplemented
 
     def is_single_shot_mode(self) -> bool:
         """Возвращает Истина, когда датчик находится в режиме однократных измерений,
