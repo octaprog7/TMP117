@@ -57,23 +57,37 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         #
         self.set_config()
 
-    def get_reg_value(self, addr: int, format_value: str) -> int:
-        """
-        Возвращает значение регистра.
-        Returns: значение регистра.
-        addr - адрес регистра.
-        format_value - формат значения для unpack
-        """
+#    def get_reg_value(self, addr: int, format_value: str) -> int:
+#        """
+#        Возвращает значение регистра.
+#        Returns: значение регистра.
+#        addr - адрес регистра.
+#        format_value - формат значения для unpack
+#        """
+#        buf = self._buf_2
+#        _conn = self._connection
+#        # читаю из Register устройства в буфер два байта
+#        _conn.read_buf_from_mem(address=addr, buf=buf, address_size=1)
+#        return _conn.unpack(fmt_char=format_value, source=buf)[0]
+
+    def get_set_reg(self, addr: int, format_value: str | None, value: int | None = None) -> int:
+        """Возвращает (при value is None)/устанавливает (при not value is None) содержимое регистра с адресом addr.
+        разрядность регистра 16 бит!"""
         buf = self._buf_2
         _conn = self._connection
-        # читаю из Register устройства в буфер два байта
-        _conn.read_buf_from_mem(address=addr, buf=buf, address_size=1)
-        return _conn.unpack(fmt_char=format_value, source=buf)[0]
+        if value is None:
+            # читаю из Register устройства в буфер два байта
+            if format_value is None:
+                raise ValueError("При чтении из регистра не задан формат его значения!")
+            _conn.read_buf_from_mem(address=addr, buf=buf, address_size=1)
+            return _conn.unpack(fmt_char=format_value, source=buf)[0]
+        #
+        return self._connection.write_reg(reg_addr=addr, value=value, bytes_count=len(buf))
 
     @micropython.native
     def get_unlock_reg(self) -> int:
         """Возвращает значение EEPROM Unlock Register"""
-        return self.get_reg_value(addr=0x04, format_value="H")
+        return self.get_set_reg(addr=0x04, format_value="H")
 
     @micropython.native
     def is_eeprom_busy(self) -> bool:
@@ -104,6 +118,9 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
                         f"Invalid conversion cycle time value: {self.conversion_cycle_time}")
         avg = check_value(self.average, range(4),
                         f"Invalid conversion averaging mode value: {self.average}")
+        # В One-Shot режиме CONV игнорируется (раздел 7.4.3)
+        if 3 == self.conversion_mode:  # One-shot
+            return _AVG_MIN_CYCLE_MS[avg]
         # запланированное время цикла из настроек CONV
         base_time = _CONV_BASE_TIME_MS[conv]
         # минимально необходимое время для выбранного усреднения AVG
@@ -115,29 +132,29 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
     def __del__(self):
         self.conversion_mode = 0x01     # Shutdown (SD)
         self.set_config()
-        del self._buf_2     # возвращаю несколько байт управляющему памятью:-)
+        # del self._buf_2     # возвращаю несколько байт управляющему памятью:-)
 
     def _get_config_reg(self) -> int:
         """read config from register (2 byte)"""
-        return self.get_reg_value(addr=0x01, format_value="H")
+        return self.get_set_reg(addr=0x01, format_value="H")
 
     def _set_config_reg(self, cfg: int) -> int:
         """write config to register (2 byte)"""
-        return self._connection.write_reg(reg_addr=0x01, value=cfg, bytes_count=2)
+        return self.get_set_reg(addr=0x01, format_value=None, value=cfg)
 
     @micropython.native
     def get_config(self) -> int:
         """Читает настройки датчика из регистра. Сохраняет(!) их в полях экземпляра класса."""
         config = self._get_config_reg()
-        self.DR_Alert = config & (0x01 << 2)
-        self.POL = config & (0x01 << 3)
-        self.T_nA = config & (0x01 << 4)
+        self.DR_Alert = bool(config & (0x01 << 2))
+        self.POL = bool(config & (0x01 << 3))
+        self.T_nA = bool(config & (0x01 << 4))
         self.average = (config & (0b11 << 5)) >> 5
         self.conversion_cycle_time = (config & (0b111 << 7)) >> 7
         self.conversion_mode = (config & (0b11 << 10)) >> 10
-        self.data_ready = config & (0x01 << 13)
-        self.low_alert = config & (0x01 << 14)
-        self.high_alert = config & (0x01 << 15)
+        self.data_ready = bool(config & (0x01 << 13))
+        self.low_alert = bool(config & (0x01 << 14))
+        self.high_alert = bool(config & (0x01 << 15))
         #
         return config
 
@@ -161,7 +178,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         обновляющий значения текущих настроек в полях экземпляра класса."""
         self.conversion_cycle_time = check_value(conv_cycle_time, range(8),
                                                  f"Invalid conversion_cycle_time value: {conv_cycle_time}")
-        self.average = check_value(average_mode, range(4), f"Invalid conversion_mode value: {average_mode}")
+        self.average = check_value(average_mode, range(4), f"Invalid averaging mode value: {average_mode}")
         self.conversion_mode = 2    # continuous mode
         if single_shot:
             self.conversion_mode = 3
@@ -178,11 +195,11 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         Control it yourself!
         """
         reg_val = int(offset // _scale)
-        return self._connection.write_reg(reg_addr=0x07, value=reg_val, bytes_count=2)
+        return self.get_set_reg(addr=0x07, format_value=None, value=reg_val)
 
     def get_temperature_offset(self) -> float:
         """get temperature offset from sensor"""
-        raw_offset = self.get_reg_value(addr=0x07, format_value="h")
+        raw_offset = self.get_set_reg(addr=0x07, format_value="h")
         return _scale * raw_offset
 
     def get_id(self) -> id_tmp117:
@@ -200,12 +217,21 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         Note:
         - Device ID = 0x117 подтверждает, что подключён TMP117
         - Проверка device_id полезна для верификации подключения датчика"""
-        _raw = self.get_reg_value(addr=0x0F, format_value="H")
+        _raw = self.get_set_reg(addr=0x0F, format_value="H")
         return id_tmp117(revision_number=(0xF000 & _raw) >> 12, device_id=0xFFF & _raw)
 
     def soft_reset(self):
-        """программный сброс датчика.
-        software reset of the sensor"""
+        """Выполняет программный сброс датчика TMP117.
+    
+        Устанавливает бит Soft_Reset (бит 1) в регистре конфигурации (0x01), что запускает последовательность сброса устройства.
+        ВНИМАНИЕ: ТРЕБУЮТСЯ ДЕЙСТВИЯ ПОСЛЕ ВЫЗОВА!!!
+        После вызова этого метода необходимо:
+        1. Выждать минимум 2 мс перед любыми операциями с датчиком: time.sleep_ms(2)
+        2. Обновить кэш конфигурации: sensor.get_config()
+        Если после вызова soft_reset есть свой код, требующий времени выполнения от 2 мс,
+        то вызывать sleep_ms(2) не нужно. Этот код не должен работать с датчиком!
+        sensor.get_config() вызвать все таки желательно!
+        """
         config = self._get_config_reg()
         self._set_config_reg(config | 0x02)
 
@@ -238,7 +264,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
             Согласно разделу 7.3.1 дата шита, до первого преобразования
             регистр температуры содержит -256 °C (код 0x8000).
         """
-        raw_val = self.get_reg_value(addr=0x00, format_value="h")
+        raw_val = self.get_set_reg(addr=0x00, format_value="h")
         if -32768 == raw_val:
             return None
         return _scale * raw_val
@@ -262,14 +288,18 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         Warning:
             Не перезаписывайте EEPROM1 (word_0, адрес 0x05)!
             Это нарушит NIST-трассируемость калибровки датчика.
-            Согласно разделу 7.6.7 дата шита:
+            Согласно разделу 7.6.7 дата шита: «To support NIST traceability do not delete or reprogram the EEPROM[1] register.»
 
         Note:
             - Уникальный ID используется для трассировки калибровки к стандартам NIST
             - TMP117 тестируется на производстве с NIST-трассируемым оборудованием
             - Верифицировано по стандартам ISO/IEC 17025 (раздел 7.5.1.1 дата шита)
             - Общий объём EEPROM для ID: 48 бит (3 регистра × 16 бит)"""
-        _gen = (self.get_reg_value(addr=adr, format_value="H") for adr in _UID_EEPROM_ADDR)
+        # Проверка: не занята ли EEPROM
+        if self.is_eeprom_busy():
+            raise RuntimeError("EEPROM занята, результат будет неверен!")
+        # можно читать!
+        _gen = (self.get_set_reg(addr=adr, format_value="H") for adr in _UID_EEPROM_ADDR)
         return uid_tmp117(word_0=next(_gen), word_1=next(_gen), word_2=next(_gen))
 
     def is_single_shot_mode(self) -> bool:
@@ -282,4 +312,4 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator):
         """Возвращает Истина, когда датчик находится в режиме многократных измерений,
         производимых автоматически. Процесс запускается методом start_measurement"""
         self.get_config()
-        return 0 == self.conversion_mode or 2 == self.conversion_mode
+        return self.conversion_mode in (0, 2)
