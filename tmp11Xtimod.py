@@ -8,9 +8,9 @@ from sensor_pack_2 import bus_service
 from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Iterator, check_value
 from sensor_pack_2.comp_interface import ICompInterface
 
-flags_tmp117 = namedtuple("flags_tmp117", "eeprom_busy data_ready low_alert high_alert")
-id_tmp117 = namedtuple("id_tmp117", "revision_number device_id")
-uid_tmp117 = namedtuple("uid_tmp117", "word_0 word_1 word_2")
+flags_tmp11X = namedtuple("flags_tmp11X", "eeprom_busy data_ready low_alert high_alert")
+id_tmp11X = namedtuple("id_tmp11X", "revision_number device_id")
+uid_tmp11X = namedtuple("uid_tmp11X", "word_0 word_1 word_2")
 
 # Please read this before use!: https://www.ti.com/product/TMP117
 # About NIST:   https://e2e.ti.com/support/sensors-group/sensors/f/sensors-forum/1000579/tmp117-tmp117-nist-byte-order-and-eeprom4-address
@@ -42,7 +42,7 @@ def _raw_to_celsius(value: int) -> float:
     # Масштабирование: temp = raw / 128
     return _scale * value
 
-class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
+class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     """
     Драйвер для семейства температурных датчиков TI TMP11X.
 
@@ -212,26 +212,26 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         raw_offset = self.get_set_reg(addr=0x07, format_value="h")
         return _raw_to_celsius(raw_offset)
 
-    def get_id(self) -> id_tmp117:
-        """Возвращает идентификатор устройства TMP117.
+    def get_id(self) -> id_tmp11X:
+        """Возвращает идентификатор устройства TMP117, TMP119.
 
         Читает регистр Device_ID (адрес 0x0F), содержащий:
         - Revision number (биты 15:12) — версия ревизии чипа
         - Device ID (биты 11:0) — должен быть 0x117 для TMP117
 
         Returns:
-            id_tmp117: Именованный кортеж с полями:
+            id_tmp11X: Именованный кортеж с полями:
                 - revision_number: 4-битная версия ревизии (0–15)
-                - device_id: 12-битный идентификатор устройства (должен быть 0x117)
+                - device_id: 12-битный идентификатор устройства (должен быть 0x117 для TMP117)
 
         Note:
-        - Device ID = 0x117 подтверждает, что подключён TMP117
-        - Проверка device_id полезна для верификации подключения датчика"""
+        - Device ID = 0x117 подтверждает, что подключён TMP117 для TMP119 будет что-то другое
+        - Проверка device_id полезна для проверки подключения датчика"""
         _raw = self.get_set_reg(addr=0x0F, format_value="H")
-        return id_tmp117(revision_number=(0xF000 & _raw) >> 12, device_id=0xFFF & _raw)
+        return id_tmp11X(revision_number=(0xF000 & _raw) >> 12, device_id=0xFFF & _raw)
 
     def soft_reset(self):
-        """Выполняет программный сброс датчика TMP117.
+        """Выполняет программный сброс датчика TMP117, TMP119.
     
         Устанавливает бит Soft_Reset (бит 1) в регистре конфигурации (0x01), что запускает последовательность сброса устройства.
         ВНИМАНИЕ: ТРЕБУЮТСЯ ДЕЙСТВИЯ ПОСЛЕ ВЫЗОВА!!!
@@ -245,12 +245,12 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         config = self._get_config_reg()
         self._set_config_reg(config | 0x02)
 
-    def get_flags(self) -> flags_tmp117:
+    def get_flags(self) -> flags_tmp11X:
         """Return tuple: (EEPROM_Busy, Data_Ready, LOW_Alert) flags"""
         config = self._get_config_reg()
         # print(f"config_reg: {hex(config)}")
         _gen = (0 != (config & (0x01 << i)) for i in range(12, 16))
-        return flags_tmp117(eeprom_busy=next(_gen), data_ready=next(_gen), low_alert=next(_gen), high_alert=next(_gen))
+        return flags_tmp11X(eeprom_busy=next(_gen), data_ready=next(_gen), low_alert=next(_gen), high_alert=next(_gen))
 
     def get_data_status(self, raw: bool = False) -> bool | int:
         """Флаг готовности данных. Этот флаг указывает, что преобразование завершено и регистр температуры
@@ -281,14 +281,14 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         """Удобное чтение температуры с помощью итератора"""
         return self.get_measurement_value()
 
-    def get_uid(self) -> uid_tmp117:
+    def get_uid(self) -> uid_tmp11X:
         """Возвращает уникальный 48-битный ID датчика TMP117.
 
         Читает три регистра EEPROM (0x05, 0x06, 0x08), содержащие уникальный
         идентификатор, запрограммированный на заводе TI.
 
         Returns:
-            uid_tmp117: Именованный кортеж с тремя 16-битными словами:
+            uid_tmp11X: Именованный кортеж с тремя 16-битными словами:
                 - word_0: EEPROM1 (адрес 0x05) — критичен для NIST-трассируемости
                 - word_1: EEPROM2 (адрес 0x06) — пользовательские данные
                 - word_2: EEPROM3 (адрес 0x08) — пользовательские данные
@@ -300,7 +300,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
         Note:
             - Уникальный ID используется для трассировки калибровки к стандартам NIST
-            - TMP117 тестируется на производстве с NIST-трассируемым оборудованием
+            - TMP117, TMP119 тестируется на производстве с NIST-трассируемым оборудованием
             - Верифицировано по стандартам ISO/IEC 17025 (раздел 7.5.1.1 дата шита)
             - Общий объём EEPROM для ID: 48 бит (3 регистра × 16 бит)"""
         # Проверка: не занята ли EEPROM
@@ -308,7 +308,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             raise RuntimeError("EEPROM занята, результат будет неверен!")
         # можно читать!
         _gen = (self.get_set_reg(addr=adr, format_value="H") for adr in _UID_EEPROM_ADDR)
-        return uid_tmp117(word_0=next(_gen), word_1=next(_gen), word_2=next(_gen))
+        return uid_tmp11X(word_0=next(_gen), word_1=next(_gen), word_2=next(_gen))
 
     def is_single_shot_mode(self) -> bool:
         """Возвращает Истина, когда датчик находится в режиме однократных измерений,
@@ -323,7 +323,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         return self.conversion_mode in (0, 2)
 
     # ========================================================================
-    # ICompInterface Implementation (Температурный компаратор)
+    # ICompInterface Implementation (Температурный компаратор)               #
     # ========================================================================
 
     @micropython.native
@@ -399,7 +399,6 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             t_min_raw = _celsius_to_raw(t_min)
             t_max_raw = _celsius_to_raw(t_max)
 
-            # Запись в регистры (big-endian, 16-bit)
             self.get_set_reg(addr=0x03, format_value=None, value=t_min_raw)  # T_LOW
             self.get_set_reg(addr=0x02, format_value=None, value=t_max_raw)  # T_HIGH
 

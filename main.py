@@ -1,6 +1,6 @@
 # Please read this before use!: https://www.ti.com/product/TMP117
 import time
-import tmp117timod
+import tmp11Xtimod
 from machine import I2C, Pin
 from collections import namedtuple
 from sensor_pack_2.bus_service import I2cAdapter
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     i2c = I2C(id=1, scl=Pin(7), sda=Pin(6), freq=400_000)  # on Raspberry Pi Pico
     adapter = I2cAdapter(i2c)
     # ts - temperature sensor
-    ts = tmp117timod.TMP117(adapter)
+    ts = tmp11Xtimod.TMP11X(adapter)
 
     # если у вас посыпались исключения EIO, проверьте все соединения!
     # if you're getting EIO exceptions, check all connections!
