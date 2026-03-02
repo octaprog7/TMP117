@@ -43,10 +43,17 @@ def _raw_to_celsius(value: int) -> float:
     return _scale * value
 
 class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
+    """
+    Драйвер для семейства температурных датчиков TI TMP11X.
+
+    Поддерживаемые устройства:
+        - TMP117: Высокая точность (±0.1°C), ревизия 2021
+        - TMP119: Улучшенная точность (±0.08°C), ревизия 2024, Strain Tolerance
+
+    Оба устройства имеют идентичную карту регистров и полностью совместимы.
+    """
 
     def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48):
-                 #conversion_mode: int = 2, conversion_cycle_time: int = 4,
-                 #average: int = 1):
         """conversion_mode:
             00: Continuous conversion (CC)
             01: Shutdown (SD)
