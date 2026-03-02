@@ -24,8 +24,23 @@ _CONV_BASE_TIME_MS: tuple[int, ...] = const((16, 125, 250, 500, 1000, 4000, 8000
 _AVG_MIN_CYCLE_MS: tuple[int, ...] = const((0, 125, 500, 1000))
 # коэффициент для расчета температуры
 _scale = const(7.8125E-3)
+_scale_inv = const(128)
 # Адреса регистров EEPROM (3 регистра по 16 бит). Полный уникальный ID датчика.
 _UID_EEPROM_ADDR: tuple[int, ...] = const((0x05, 0x06, 0x08))
+# рабочий диапазон порогов температуры для датчиков из полупроводников на основе кремния
+_THRESHOLD_TEMP_MIN: int = const(-40)   # для Industrial/Extended/Automotive исполнений датчиков
+_THRESHOLD_TEMP_MAX: int = const(125)   # для Extended/Automotive исполнений датчиков
+
+@micropython.native
+def _celsius_to_raw(temp_celsius: float) -> int:
+    """Преобразует °C в raw-значение регистра."""
+    return int(_scale_inv * temp_celsius) & 0xFFFF
+
+@micropython.native
+def _raw_to_celsius(value: int) -> float:
+    """Преобразует raw-значение в °C."""
+    # Масштабирование: temp = raw / 128
+    return _scale * value
 
 class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
@@ -57,19 +72,6 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         self.data_ready = self.low_alert = self.high_alert = False
         #
         self.set_config()
-
-#    def get_reg_value(self, addr: int, format_value: str) -> int:
-#        """
-#        Возвращает значение регистра.
-#        Returns: значение регистра.
-#        addr - адрес регистра.
-#        format_value - формат значения для unpack
-#        """
-#        buf = self._buf_2
-#        _conn = self._connection
-#        # читаю из Register устройства в буфер два байта
-#        _conn.read_buf_from_mem(address=addr, buf=buf, address_size=1)
-#        return _conn.unpack(fmt_char=format_value, source=buf)[0]
 
     def get_set_reg(self, addr: int, format_value: str | None, value: int | None = None) -> int:
         """Возвращает (при value is None)/устанавливает (при not value is None) содержимое регистра с адресом addr.
@@ -195,13 +197,13 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         For example +/- 10.
         Control it yourself!
         """
-        reg_val = int(offset // _scale)
+        reg_val = _celsius_to_raw(offset)
         return self.get_set_reg(addr=0x07, format_value=None, value=reg_val)
 
     def get_temperature_offset(self) -> float:
         """get temperature offset from sensor"""
         raw_offset = self.get_set_reg(addr=0x07, format_value="h")
-        return _scale * raw_offset
+        return _raw_to_celsius(raw_offset)
 
     def get_id(self) -> id_tmp117:
         """Возвращает идентификатор устройства TMP117.
@@ -243,10 +245,12 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         _gen = (0 != (config & (0x01 << i)) for i in range(12, 16))
         return flags_tmp117(eeprom_busy=next(_gen), data_ready=next(_gen), low_alert=next(_gen), high_alert=next(_gen))
 
-    def get_data_status(self, raw: bool = True) -> bool:
+    def get_data_status(self, raw: bool = False) -> bool | int:
         """Флаг готовности данных. Этот флаг указывает, что преобразование завершено и регистр температуры
         может быть прочитан. Каждый раз, когда считывается регистр температуры или регистр конфигурации,
         этот бит сбрасывается!"""
+        if raw:
+            return self._get_config_reg()
         return self.get_flags().data_ready
 
     @micropython.native
@@ -264,7 +268,7 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         raw_val = self.get_set_reg(addr=0x00, format_value="h")
         if -32768 == raw_val:
             return None
-        return _scale * raw_val
+        return _raw_to_celsius(raw_val)
 
     def __next__(self):
         """Удобное чтение температуры с помощью итератора"""
@@ -354,42 +358,39 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         return 0 if self.T_nA else 1
 
     @micropython.native
-    def set_thresholds(self, rng: range | None = None) -> range:
+    def set_thresholds(self, rng: range | None = None) -> tuple[float, float]:
         """
         Устанавливает нижний и верхний пороги температуры (Tmin, Tmax).
 
         Аргументы:
-            rng (range): пороги температуры в градусах Цельсия (rng.start, rng.stop).
+            rng (range): пороги температуры в градусах Цельсия, целое число (int) (rng.start, rng.stop).
                 start < stop обязательно!
-                Диапазон: -256 °C до +255 °C (ограничено датчиком)
-                Разрешение: 1 °C (целые градусы для совместимости)
+                Диапазон: {_THRESHOLD_TEMP_MIN} °C до {_THRESHOLD_TEMP_MAX} °C
             Если rng=None, возвращает текущие пороги без изменений.
 
         Возвращает:
-            range: Текущие пороги температуры (start=Tmin, stop=Tmax).
-
-        Note:
-            - Формат данных: 16-bit two's complement (как регистр температуры)
-            - Значения округляются до ближайшего целого градуса
-            - При выходе за диапазон значения ограничиваются мин/макс датчика
+            tuple[float, float]: Текущие пороги температуры (Tmin, Tmax) в градусах Цельсия.
 
         Warning:
             - В режиме компаратора (mode=0): Tmin работает как гистерезис для сброса
             - В режиме прерывания (mode=1): оба порога работают независимо
         """
+        def get_err_str(value: int, r: range) -> str:
+            """Возвращает строковое описание ошибки"""
+            return f"Температура {value} вне диапазона: {r}"
+
         if rng is not None:
-            t_min = check_value(rng.start, range(-256, 256),
-                                f"Tmin out of range: {rng.start}")
-            t_max = check_value(rng.stop, range(-256, 256),
-                                f"Tmax out of range: {rng.stop}")
+            valid_range = range(_THRESHOLD_TEMP_MIN, 1+_THRESHOLD_TEMP_MAX)
+            t_min = check_value(rng.start, valid_range, get_err_str(rng.start, valid_range))
+            t_max = check_value(rng.stop, valid_range, get_err_str(rng.stop, valid_range))
 
             if t_min >= t_max:
-                raise ValueError(f"Tmin ({t_min}) must be less than Tmax ({t_max})")
+                raise ValueError(f"Tmin ({t_min}) должна быть меньше Tmax ({t_max})")
 
             # Конвертация в регистровые значения (LSB = 7.8125 m°C)
             # Целые градусы → raw = degrees / 0.0078125
-            t_min_raw = int(t_min / _scale) & 0xFFFF
-            t_max_raw = int(t_max / _scale) & 0xFFFF
+            t_min_raw = _celsius_to_raw(t_min)
+            t_max_raw = _celsius_to_raw(t_max)
 
             # Запись в регистры (big-endian, 16-bit)
             self.get_set_reg(addr=0x03, format_value=None, value=t_min_raw)  # T_LOW
@@ -400,10 +401,10 @@ class TMP117(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         t_high_raw = self.get_set_reg(addr=0x02, format_value="h")  # signed
 
         # Конвертация обратно в целые градусы
-        t_min = int(t_low_raw * _scale)
-        t_max = int(t_high_raw * _scale)
+        t_min = _raw_to_celsius(t_low_raw)
+        t_max = _raw_to_celsius(t_high_raw)
 
-        return range(t_min, t_max)
+        return t_min, t_max
 
     @micropython.native
     def is_over_threshold(self) -> bool:
