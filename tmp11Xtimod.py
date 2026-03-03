@@ -206,10 +206,11 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
     def start_measurement(self, single_shot: bool = False, conv_cycle_time: int = 4,
                           average_mode: int = 1):
-        """Настраивает работу датчика в желаемом режиме."""
+        """Настраивает работу датчика в желаемом режиме.
+        Вызывайте метод get_config для обновления конфигурации самостоятельно!"""
         self.conversion_cycle_time = check_value(conv_cycle_time, range(8),
-                                                 f"Invalid conversion_cycle_time value: {conv_cycle_time}")
-        self.average = check_value(average_mode, range(4), f"Invalid averaging mode value: {average_mode}")
+                                                 f"Неверное значение параметра conversion_cycle_time: {conv_cycle_time}")
+        self.average = check_value(average_mode, range(4), f"Неверное значение параметра average_mode: {average_mode}")
         self.conversion_mode = 2    # continuous mode
         if single_shot:
             self.conversion_mode = 3
@@ -235,8 +236,8 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         """Возвращает идентификатор устройства TMP117, TMP119.
 
         Читает регистр Device_ID (адрес _REG_DEVICE_ID), содержащий:
-        - Revision number (биты 15:12) — версия ревизии чипа
-        - Device ID (биты 11:0) — должен быть 0x117 для TMP117
+        - Revision number (биты 15:12) — версия ревизии чипа. Revision number равен нулю для 117, а для 119 равен двум (во всяком случае в марте 2026)!
+        - Device ID (биты 11:0) — должен быть 0x117 для TMP117 и для TMP119!
 
         Returns:
             id_tmp11X: Именованный кортеж с полями:
