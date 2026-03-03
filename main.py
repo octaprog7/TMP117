@@ -122,7 +122,7 @@ if __name__ == '__main__':
     ts.start_measurement(single_shot=False)
     sleep_time = ts.get_conversion_cycle_time()
 
-    _lim = 13
+    _lim = 22
     _min_old = float("inf")
     _max_old = float("-inf")
     samples: list[float] = []
@@ -159,19 +159,20 @@ if __name__ == '__main__':
     print("Проверка работы компаратора (ICompInterface)")
     print(32 * "#")
 
+    ds = ts.get_data_status(raw=True)
+    print(f"Status reg: 0x{ds:04X}")
+
     # 1. Настройка компаратора
     print("\nНастройка компаратора...")
-
     comp_mode = 0  # 0=Therm, 1=Alert
     ts.set_comp_mode(mode=comp_mode, level=False)
 
     # ← result теперь доступен! Используем result.avg из статистики
     t_center = stats.avg if stats is not None else 26.0
-    t_min_set = int(t_center - 1)
-    t_max_set = int(t_center + 1)
+    t_min_set = t_center - 1
+    t_max_set = 1 + t_center
 
-    actual_range = ts.set_thresholds(range(t_min_set, t_max_set))
-    # actual_range = ts.set_thresholds(None)
+    actual_range = ts.set_thresholds((t_min_set, t_max_set))
     current_mode = ts.set_comp_mode(mode=None)
 
     print(f"Режим: {'Therm (термостат)' if 0 == current_mode else 'Alert (прерывание)'}")
@@ -194,7 +195,7 @@ if __name__ == '__main__':
         if temp < actual_range[0]:
             status = "Ниже Tmin"
         elif temp > actual_range[1]:
-            status = "Выше Tmax"
+            status = "Выше T_max"
         else:
             status = "В диапазоне"
 
