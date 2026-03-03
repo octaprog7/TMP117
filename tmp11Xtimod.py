@@ -15,6 +15,28 @@ uid_tmp11X = namedtuple("uid_tmp11X", "word_0 word_1 word_2")
 # Please read this before use!: https://www.ti.com/product/TMP117
 # About NIST:   https://e2e.ti.com/support/sensors-group/sensors/f/sensors-forum/1000579/tmp117-tmp117-nist-byte-order-and-eeprom4-address
 
+# ========================================================================
+# Register Addresses (TMP117/TMP119)
+# ========================================================================
+
+# Основной регистр температуры
+_REG_TEMP: int = const(0x00)
+# Регистр конфигурации
+_REG_CONFIG: int = const(0x01)
+# Регистры порогов температуры (компаратор)
+_REG_THIGH: int = const(0x02)      # Верхний порог (Tmax)
+_REG_TLOW: int = const(0x03)       # Нижний порог (Tmin)
+# Регистр разблокировки EEPROM
+_REG_EEPROM_UL: int = const(0x04)
+# Регистры EEPROM (уникальный ID)
+_REG_EEPROM1: int = const(0x05)
+_REG_EEPROM2: int = const(0x06)
+_REG_EEPROM3: int = const(0x08)
+# Регистр температурного смещения (offset)
+_REG_OFFSET: int = const(0x07)
+# Регистр идентификатора устройства
+_REG_DEVICE_ID: int = const(0x0F)
+
 # Базовое время цикла преобразования для CONV[2:0] при AVG=00 (в мс)
 # Индексы: 0 1 2 3 4 5 6 7
 _CONV_BASE_TIME_MS: tuple[int, ...] = const((16, 125, 250, 500, 1000, 4000, 8000, 16000))
@@ -26,15 +48,16 @@ _AVG_MIN_CYCLE_MS: tuple[int, ...] = const((0, 125, 500, 1000))
 _scale = const(7.8125E-3)
 _scale_inv = const(128)
 # Адреса регистров EEPROM (3 регистра по 16 бит). Полный уникальный ID датчика.
-_UID_EEPROM_ADDR: tuple[int, ...] = const((0x05, 0x06, 0x08))
+_UID_EEPROM_ADDR: tuple[int, ...] = const((_REG_EEPROM1, _REG_EEPROM2, _REG_EEPROM3))
 # рабочий диапазон порогов температуры для датчиков из полупроводников на основе кремния
 _THRESHOLD_TEMP_MIN: int = const(-40)   # для Industrial/Extended/Automotive исполнений датчиков
 _THRESHOLD_TEMP_MAX: int = const(125)   # для Extended/Automotive исполнений датчиков
+_hex_FFFF = const(0xFFFF)
 
 @micropython.native
 def _celsius_to_raw(temp_celsius: float) -> int:
     """Преобразует °C в raw-значение регистра."""
-    return int(_scale_inv * temp_celsius) & 0xFFFF
+    return int(_scale_inv * temp_celsius) & _hex_FFFF
 
 @micropython.native
 def _raw_to_celsius(value: int) -> float:
@@ -47,8 +70,8 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     Драйвер для семейства температурных датчиков TI TMP11X.
 
     Поддерживаемые устройства:
-        - TMP117: Высокая точность (±0.1°C), ревизия 2021
-        - TMP119: Улучшенная точность (±0.08°C), ревизия 2024, Strain Tolerance
+        - TMP117: Высокая точность (±0.1°C). Год начала производства: 2021
+        - TMP119: Улучшенная точность (±0.08°C). Год начала производства: 2024, Strain Tolerance
 
     Оба устройства имеют идентичную карту регистров и полностью совместимы.
     """
@@ -97,7 +120,7 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     @micropython.native
     def get_unlock_reg(self) -> int:
         """Возвращает значение EEPROM Unlock Register"""
-        return self.get_set_reg(addr=0x04, format_value="H")
+        return self.get_set_reg(addr=_REG_EEPROM_UL, format_value="H")
 
     @micropython.native
     def is_eeprom_busy(self) -> bool:
@@ -116,7 +139,7 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         необходимо убедиться, что этот флаг сброшен.
 
         See Also:
-            - Раздел 7.6.6 дата шита: EEPROM Unlock Register (адрес 0x04)
+            - Раздел 7.6.6 дата шита: EEPROM Unlock Register (адрес _REG_EEPROM_UL)
             - Раздел 7.5.1.2 дата шита: Programming the EEPROM"""
         unlock_reg = self.get_unlock_reg()
         return bool(unlock_reg & 0x4000)  # Бит 14
@@ -142,50 +165,48 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     def __del__(self):
         self.conversion_mode = 0x01     # Shutdown (SD)
         self.set_config()
-        # del self._buf_2     # возвращаю несколько байт управляющему памятью:-)
+        # del self._buf_2 # возвращаю несколько байт управляющему памятью:-)
 
     def _get_config_reg(self) -> int:
         """read config from register (2 byte)"""
-        return self.get_set_reg(addr=0x01, format_value="H")
+        return self.get_set_reg(addr=_REG_CONFIG, format_value="H")
 
     def _set_config_reg(self, cfg: int) -> int:
         """write config to register (2 byte)"""
-        return self.get_set_reg(addr=0x01, format_value=None, value=cfg)
+        return self.get_set_reg(addr=_REG_CONFIG, format_value=None, value=cfg)
 
     @micropython.native
     def get_config(self) -> int:
         """Читает настройки датчика из регистра. Сохраняет(!) их в полях экземпляра класса."""
-        config = self._get_config_reg()
-        self.DR_Alert = bool(config & (0x01 << 2))
-        self.POL = bool(config & (0x01 << 3))
-        self.T_nA = bool(config & (0x01 << 4))
-        self.average = (config & (0b11 << 5)) >> 5
-        self.conversion_cycle_time = (config & (0b111 << 7)) >> 7
-        self.conversion_mode = (config & (0b11 << 10)) >> 10
-        self.data_ready = bool(config & (0x01 << 13))
-        self.low_alert = bool(config & (0x01 << 14))
-        self.high_alert = bool(config & (0x01 << 15))
+        raw_cfg = self._get_config_reg()
+        self.DR_Alert = bool(raw_cfg & (0x01 << 2))
+        self.POL = bool(raw_cfg & (0x01 << 3))
+        self.T_nA = bool(raw_cfg & (0x01 << 4))
+        self.average = (raw_cfg & (0b11 << 5)) >> 5
+        self.conversion_cycle_time = (raw_cfg & (0b111 << 7)) >> 7
+        self.conversion_mode = (raw_cfg & (0b11 << 10)) >> 10
+        self.data_ready = bool(raw_cfg & (0x01 << 13))
+        self.low_alert = bool(raw_cfg & (0x01 << 14))
+        self.high_alert = bool(raw_cfg & (0x01 << 15))
         #
-        return config
+        return raw_cfg
 
     @micropython.native
     def set_config(self):
         """write current settings to sensor"""
-        tmp = 0
-        tmp |= int(self.DR_Alert) << 2
-        tmp |= int(self.POL) << 3
-        tmp |= int(self.T_nA) << 4
-        tmp |= int(self.average) << 5
-        tmp |= int(self.conversion_cycle_time) << 7
-        tmp |= int(self.conversion_mode) << 10
+        raw_cfg = 0
+        raw_cfg |= int(self.DR_Alert) << 2
+        raw_cfg |= int(self.POL) << 3
+        raw_cfg |= int(self.T_nA) << 4
+        raw_cfg |= int(self.average) << 5
+        raw_cfg |= int(self.conversion_cycle_time) << 7
+        raw_cfg |= int(self.conversion_mode) << 10
         #
-        self._set_config_reg(tmp)
+        self._set_config_reg(raw_cfg)
 
     def start_measurement(self, single_shot: bool = False, conv_cycle_time: int = 4,
-                          average_mode: int = 1, refresh_conf: bool = True):
-        """Настраивает работу датчика в желаемом режиме.
-        Если refresh_conf Истина, то после вызова метода set_config, вызывается метод get_config,
-        обновляющий значения текущих настроек в полях экземпляра класса."""
+                          average_mode: int = 1):
+        """Настраивает работу датчика в желаемом режиме."""
         self.conversion_cycle_time = check_value(conv_cycle_time, range(8),
                                                  f"Invalid conversion_cycle_time value: {conv_cycle_time}")
         self.average = check_value(average_mode, range(4), f"Invalid averaging mode value: {average_mode}")
@@ -193,8 +214,6 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         if single_shot:
             self.conversion_mode = 3
         self.set_config()
-        if refresh_conf:
-            self.get_config()
 
     def set_temperature_offset(self, offset: float) -> int:
         """set temperature offset to sensor.
@@ -205,17 +224,17 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         Control it yourself!
         """
         reg_val = _celsius_to_raw(offset)
-        return self.get_set_reg(addr=0x07, format_value=None, value=reg_val)
+        return self.get_set_reg(addr=_REG_OFFSET, format_value=None, value=reg_val)
 
     def get_temperature_offset(self) -> float:
         """get temperature offset from sensor"""
-        raw_offset = self.get_set_reg(addr=0x07, format_value="h")
+        raw_offset = self.get_set_reg(addr=_REG_OFFSET, format_value="h")
         return _raw_to_celsius(raw_offset)
 
     def get_id(self) -> id_tmp11X:
         """Возвращает идентификатор устройства TMP117, TMP119.
 
-        Читает регистр Device_ID (адрес 0x0F), содержащий:
+        Читает регистр Device_ID (адрес _REG_DEVICE_ID), содержащий:
         - Revision number (биты 15:12) — версия ревизии чипа
         - Device ID (биты 11:0) — должен быть 0x117 для TMP117
 
@@ -227,13 +246,13 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         Note:
         - Device ID = 0x117 подтверждает, что подключён TMP117 для TMP119 будет что-то другое
         - Проверка device_id полезна для проверки подключения датчика"""
-        _raw = self.get_set_reg(addr=0x0F, format_value="H")
+        _raw = self.get_set_reg(addr=_REG_DEVICE_ID, format_value="H")
         return id_tmp11X(revision_number=(0xF000 & _raw) >> 12, device_id=0xFFF & _raw)
 
     def soft_reset(self):
         """Выполняет программный сброс датчика TMP117, TMP119.
     
-        Устанавливает бит Soft_Reset (бит 1) в регистре конфигурации (0x01), что запускает последовательность сброса устройства.
+        Устанавливает бит Soft_Reset (бит 1) в регистре конфигурации (_REG_CONFIG), что запускает последовательность сброса устройства.
         ВНИМАНИЕ: ТРЕБУЮТСЯ ДЕЙСТВИЯ ПОСЛЕ ВЫЗОВА!!!
         После вызова этого метода необходимо:
         1. Выждать минимум 2 мс перед любыми операциями с датчиком: time.sleep_ms(2)
@@ -272,7 +291,7 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             Согласно разделу 7.3.1 дата шита, до первого преобразования
             регистр температуры содержит -256 °C (код 0x8000).
         """
-        raw_val = self.get_set_reg(addr=0x00, format_value="h")
+        raw_val = self.get_set_reg(addr=_REG_TEMP, format_value="h")
         if -32768 == raw_val:
             return None
         return _raw_to_celsius(raw_val)
@@ -289,19 +308,19 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
         Returns:
             uid_tmp11X: Именованный кортеж с тремя 16-битными словами:
-                - word_0: EEPROM1 (адрес 0x05) — критичен для NIST-трассируемости
+                - word_0: EEPROM1 (адрес 0x05) — критичен для NIST прослеживаемости
                 - word_1: EEPROM2 (адрес 0x06) — пользовательские данные
                 - word_2: EEPROM3 (адрес 0x08) — пользовательские данные
 
         Warning:
             Не перезаписывайте EEPROM1 (word_0, адрес 0x05)!
-            Это нарушит NIST-трассируемость калибровки датчика.
+            Это нарушит NIST-прослеживаемость калибровки датчика.
             Согласно разделу 7.6.7 дата шита: «To support NIST traceability do not delete or reprogram the EEPROM[1] register.»
 
         Note:
-            - Уникальный ID используется для трассировки калибровки к стандартам NIST
-            - TMP117, TMP119 тестируется на производстве с NIST-трассируемым оборудованием
-            - Верифицировано по стандартам ISO/IEC 17025 (раздел 7.5.1.1 дата шита)
+            - Уникальный ID используется для отслеживаемости калибровки к стандартам NIST
+            - TMP117, TMP119 тестируется на производстве с NIST оборудованием
+            - по стандартам ISO/IEC 17025 (раздел 7.5.1.1 дата шита)
             - Общий объём EEPROM для ID: 48 бит (3 регистра × 16 бит)"""
         # Проверка: не занята ли EEPROM
         if self.is_eeprom_busy():
@@ -342,7 +361,7 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
                     до чтения регистра состояния (подтверждение прерывания).
                     Рекомендуется для генерации прерываний микроконтроллера.
             level (bool): Уровень сигнала на выходе ALERT при срабатывании.
-                False — Низкий уровень (0V при тревоге, требуется подтяжка к V+)
+                False — Низкий уровень (0V при тревоге, требуется подтяжка к V+). Открытый коллектор/сток.
                 True — Высокий уровень (V+ при тревоге)
 
         Возвращает:
@@ -357,17 +376,18 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         if mode is not None:
             mode = check_value(mode, range(2), f"Invalid comparator mode: {mode}")
             # T/nA бит (бит 4): 1=Therm (режим 0), 0=Alert (режим 1)
-            self.T_nA = (mode == 0)
+            self.T_nA = (0 == mode)
             self.POL = level
             self.set_config()
 
+        self.get_config()
         # Возвращаем текущий режим
         return 0 if self.T_nA else 1
 
     @micropython.native
     def set_thresholds(self, rng: range | None = None) -> tuple[float, float]:
         """
-        Устанавливает нижний и верхний пороги температуры (Tmin, Tmax).
+        Устанавливает нижний и верхний пороги температуры (Tmin, T_max).
 
         Аргументы:
             rng (range): пороги температуры в градусах Цельсия, целое число (int) (rng.start, rng.stop).
@@ -376,7 +396,7 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             Если rng=None, возвращает текущие пороги без изменений.
 
         Возвращает:
-            tuple[float, float]: Текущие пороги температуры (Tmin, Tmax) в градусах Цельсия.
+            tuple[float, float]: Текущие пороги температуры (Tmin, T_max) в градусах Цельсия.
 
         Warning:
             - В режиме компаратора (mode=0): Tmin работает как гистерезис для сброса
@@ -392,19 +412,17 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             t_max = check_value(rng.stop, valid_range, get_err_str(rng.stop, valid_range))
 
             if t_min >= t_max:
-                raise ValueError(f"Tmin ({t_min}) должна быть меньше Tmax ({t_max})")
+                raise ValueError(f"Tmin ({t_min}) должна быть меньше T_max ({t_max})")
 
-            # Конвертация в регистровые значения (LSB = 7.8125 m°C)
-            # Целые градусы → raw = degrees / 0.0078125
             t_min_raw = _celsius_to_raw(t_min)
             t_max_raw = _celsius_to_raw(t_max)
 
-            self.get_set_reg(addr=0x03, format_value=None, value=t_min_raw)  # T_LOW
-            self.get_set_reg(addr=0x02, format_value=None, value=t_max_raw)  # T_HIGH
+            self.get_set_reg(addr=_REG_TLOW, format_value=None, value=t_min_raw)  # T_LOW
+            self.get_set_reg(addr=_REG_THIGH, format_value=None, value=t_max_raw)  # T_HIGH
 
         # Чтение текущих порогов
-        t_low_raw = self.get_set_reg(addr=0x03, format_value="h")  # signed
-        t_high_raw = self.get_set_reg(addr=0x02, format_value="h")  # signed
+        t_low_raw = self.get_set_reg(addr=_REG_TLOW, format_value="h")  # signed
+        t_high_raw = self.get_set_reg(addr=_REG_THIGH, format_value="h")  # signed
 
         # Конвертация обратно в целые градусы
         t_min = _raw_to_celsius(t_low_raw)
@@ -415,10 +433,10 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     @micropython.native
     def is_over_threshold(self) -> bool:
         """
-        Проверить, превышен ли верхний порог температуры (T > Tmax).
+        Проверить, превышен ли верхний порог температуры (T > T_max).
 
         Возвращает:
-            bool: True, если температура превысила Tmax (тревога), False — иначе.
+            bool: True, если температура превысила T_max (тревога), False — иначе.
 
         Note:
             - В режиме прерывания (mode=1) вызов этого метода может подтвердить тревогу
@@ -426,10 +444,13 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             - В режиме компаратора (mode=0) состояние сбрасывается автоматически при T < Tmin
             - Метод читает регистр конфигурации (бит 15 = HIGH_Alert)
 
+            - В режиме Therm (mode=0): флаг сбрасывается только при T < Tmin (гистерезис)
+            - В режиме Alert (mode=1): флаг сбрасывается чтением регистра конфигурации
+            - Метод читает регистр конфигурации напрямую (без обновления кэша)
+
         Warning:
             В режиме прерывания повторный вызов сразу после срабатывания
             может вернуть False (флаг уже сброшен чтением)!
         """
-        config = self._get_config_reg()
-        # Бит 15 = HIGH_Alert
-        return bool(config & (0x01 << 15))
+        self.get_config()
+        return self.high_alert

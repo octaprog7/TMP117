@@ -92,7 +92,7 @@ if __name__ == '__main__':
     ts.set_temperature_offset(0.0)
     sleep_time = 0
 
-    print(20*"*_")
+    print(32 * "#")
     print("Continuous conversion mode!")
     ts.start_measurement(single_shot=False)
     for _ in range(5):
@@ -101,7 +101,7 @@ if __name__ == '__main__':
         sleep_time = ts.get_conversion_cycle_time()
         time.sleep_ms(sleep_time)
         
-    print(20*"*_")
+    print(32 * "#")
     print("One-shot conversion mode!")
     ts.start_measurement(single_shot=True)
     sleep_time = ts.get_conversion_cycle_time()
@@ -116,13 +116,13 @@ if __name__ == '__main__':
         # Можно уменьшить до 1 × sleep_time для максимальной частоты опроса
         time.sleep_ms(3 * sleep_time)
 
-    print(20*"*_")
+    print(32 *"#")
     print("Reading using an iterator!")
     # Continuous conversion mode
     ts.start_measurement(single_shot=False)
     sleep_time = ts.get_conversion_cycle_time()
 
-    _lim = 10
+    _lim = 13
     _min_old = float("inf")
     _max_old = float("-inf")
     samples: list[float] = []
@@ -155,9 +155,9 @@ if __name__ == '__main__':
     # ================================================
     # ТЕСТ ТЕМПЕРАТУРНОГО КОМПАРАТОРА (ICompInterface)
     # ================================================
-    print("\n" + 20 * "*_")
-    print("\tПроверка работы компаратора (ICompInterface)")
-    print(20 * "*_")
+    print("\n" + 32 * "#")
+    print("Проверка работы компаратора (ICompInterface)")
+    print(32 * "#")
 
     # 1. Настройка компаратора
     print("\nНастройка компаратора...")
@@ -167,12 +167,11 @@ if __name__ == '__main__':
 
     # ← result теперь доступен! Используем result.avg из статистики
     t_center = stats.avg if stats is not None else 26.0
-    t_min_set = int(t_center - 0.5)
-    t_max_set = int(t_center + 0.5)
+    t_min_set = int(t_center - 1)
+    t_max_set = int(t_center + 1)
 
-    ts.set_thresholds(range(t_min_set, t_max_set))
-
-    actual_range = ts.set_thresholds(None)
+    actual_range = ts.set_thresholds(range(t_min_set, t_max_set))
+    # actual_range = ts.set_thresholds(None)
     current_mode = ts.set_comp_mode(mode=None)
 
     print(f"Режим: {'Therm (термостат)' if 0 == current_mode else 'Alert (прерывание)'}")
