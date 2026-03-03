@@ -8,15 +8,61 @@ from machine import Pin
 
 
 @micropython.native
-def check_value(value: int | None, valid_range: range | tuple, error_msg: str) -> int | None:
-    if value is None:
+def check_value(value: int | float | None,
+                valid_range: range | tuple[int, int] | tuple[float, float] | None,
+                error_msg: str) -> int | float | None:
+    """
+    Универсальная проверка значения (int или float) в допустимом диапазоне.
+
+    Аргументы:
+        value (int | float | None): Проверяемое значение.
+        valid_range (range | tuple | None): Допустимый диапазон.
+            - range: для целых значений (например, range(-40, 126))
+            - tuple[int, int]: для целых границ (например, (-40, 125))
+            - tuple[float, float]: для вещественных границ (например, (-40.0, 125.0))
+        error_msg (str): Сообщение об ошибке при выходе за диапазон.
+
+    Возвращает:
+        int | float | None: Проверенное значение, или None если value is None.
+
+    Raises:
+        ValueError: Если значение выходит за пределы диапазона.
+    """
+    if value is None or valid_range is None:
         return value
-    if value not in valid_range:
+
+    # Проверка типа value
+    if not isinstance(value, (int, float)):
+        raise ValueError(f"Неподдерживаемый тип значения: {type(value)}")
+
+    # Проверка диапазона в зависимости от типа valid_range
+    if isinstance(valid_range, range):
+        if value not in valid_range:
+            raise ValueError(error_msg)
+        return value
+
+    if not isinstance(valid_range, tuple):
+        raise ValueError(f"Неподдерживаемый тип диапазона: {type(valid_range)}")
+
+    if 2 != len(valid_range):
+        raise ValueError(f"tuple должен содержать 2 элемента (min, max), получено: {len(valid_range)}")
+
+    min_val, max_val = valid_range
+    # Проверка типов значений границ диапазона
+    if not isinstance(min_val, (int, float)) or not isinstance(max_val, (int, float)):
+        raise ValueError(f"Границы диапазона должны быть int или float: {valid_range}")
+
+    if min_val >= max_val:
+        raise ValueError(f"min_val: {min_val} должно быть строго меньше max_val: {max_val}")
+
+        # Проверка значения в диапазоне
+    if min_val <= value <= max_val:
+        return value
+    else:
         raise ValueError(error_msg)
-    return value
 
 
-def get_error_str(val_name: str, val: int, rng: range | tuple) -> str:
+def get_error_str(val_name: str, val: int | float, rng: range | tuple) -> str:
     """Возвращает подробное сообщение об ошибке;
     val_name - имя переменной в коде;
     val - значение переменной val_name;
