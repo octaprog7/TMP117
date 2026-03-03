@@ -236,12 +236,12 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         """Возвращает идентификатор устройства TMP117, TMP119.
 
         Читает регистр Device_ID (адрес _REG_DEVICE_ID), содержащий:
-        - Revision number (биты 15:12) — версия ревизии чипа. Revision number равен нулю для 117, а для 119 равен двум (во всяком случае в марте 2026)!
+        - Revision number (биты 15:12) — номер версии кристалла. Равен нулю для 117, а для 119 равен двум (во всяком случае в марте 2026)!
         - Device ID (биты 11:0) — должен быть 0x117 для TMP117 и для TMP119!
 
         Returns:
             id_tmp11X: Именованный кортеж с полями:
-                - revision_number: 4-битная версия ревизии (0–15)
+                - revision_number: 4-битная версия кристалла (0–15)
                 - device_id: 12-битный идентификатор устройства (должен быть 0x117 для TMP117)
 
         Note:
@@ -386,34 +386,35 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         return 0 if self.T_nA else 1
 
     @micropython.native
-    def set_thresholds(self, rng: range | None = None) -> tuple[float, float]:
+    def set_thresholds(self, thresholds: tuple[float, float] | None = None) -> tuple[float, float]:
         """
         Устанавливает нижний и верхний пороги температуры (Tmin, T_max).
 
         Аргументы:
-            rng (range): пороги температуры в градусах Цельсия, целое число (int) (rng.start, rng.stop).
-                start < stop обязательно!
+            thresholds (tuple[float, float] | None): пороги температуры в градусах Цельсия.
+                Формат: (Tmin, Tmax) где Tmin < Tmax обязательно!
                 Диапазон: {_THRESHOLD_TEMP_MIN} °C до {_THRESHOLD_TEMP_MAX} °C
-            Если rng=None, возвращает текущие пороги без изменений.
+                Разрешение: 0.0078125 °C (1 LSB) — полная точность датчика
+                Если thresholds=None, возвращает текущие пороги без изменений.
 
         Возвращает:
-            tuple[float, float]: Текущие пороги температуры (Tmin, T_max) в градусах Цельсия.
+            tuple[float, float]: Текущие пороги температуры (Tmin, Tmax) в градусах Цельсия.
 
         Warning:
             - В режиме компаратора (mode=0): Tmin работает как гистерезис для сброса
             - В режиме прерывания (mode=1): оба порога работают независимо
         """
-        def get_err_str(value: int, r: range) -> str:
+        def get_err_str(value: int | float, r: range | tuple) -> str:
             """Возвращает строковое описание ошибки"""
             return f"Температура {value} вне диапазона: {r}"
 
-        if rng is not None:
-            valid_range = range(_THRESHOLD_TEMP_MIN, 1+_THRESHOLD_TEMP_MAX)
-            t_min = check_value(rng.start, valid_range, get_err_str(rng.start, valid_range))
-            t_max = check_value(rng.stop, valid_range, get_err_str(rng.stop, valid_range))
+        if thresholds is not None:
+            valid_range = _THRESHOLD_TEMP_MIN, _THRESHOLD_TEMP_MAX
+            t_min = check_value(thresholds[0], valid_range, get_err_str(thresholds[0], valid_range))
+            t_max = check_value(thresholds[1], valid_range, get_err_str(thresholds[1], valid_range))
 
             if t_min >= t_max:
-                raise ValueError(f"Tmin ({t_min}) должна быть меньше T_max ({t_max})")
+                raise ValueError(f"Tmin ({t_min}) должна быть строго меньше T_max ({t_max})!")
 
             t_min_raw = _celsius_to_raw(t_min)
             t_max_raw = _celsius_to_raw(t_max)
@@ -425,7 +426,7 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         t_low_raw = self.get_set_reg(addr=_REG_TLOW, format_value="h")  # signed
         t_high_raw = self.get_set_reg(addr=_REG_THIGH, format_value="h")  # signed
 
-        # Конвертация обратно в целые градусы
+        # Конвертация обратно в градусы Цельсия
         t_min = _raw_to_celsius(t_low_raw)
         t_max = _raw_to_celsius(t_high_raw)
 
