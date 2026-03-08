@@ -347,38 +347,13 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     # ========================================================================
 
     @micropython.native
-    def set_comp_mode(self, mode: int | None = None, level: bool = False) -> int:
-        """
-        Установить режим работы встроенного температурного компаратора.
-
-        Аргументы:
-            mode (int): Режим работы компаратора.
-                0 — Режим компаратора (Comparator/Therm mode).
-                    Вывод меняет уровень, пока температура за пределами диапазона.
-                    Возврат в норму автоматически при восстановлении температуры.
-                    Рекомендуется для аппаратных термостатов.
-                1 — Режим прерывания (Interrupt/Alert mode).
-                    Вывод меняет уровень при выходе за пределы и удерживает его
-                    до чтения регистра состояния (подтверждение прерывания).
-                    Рекомендуется для генерации прерываний микроконтроллера.
-            level (bool): Уровень сигнала на выходе ALERT при срабатывании.
-                False — Низкий уровень (0V при тревоге, требуется подтяжка к V+). Открытый коллектор/сток.
-                True — Высокий уровень (V+ при тревоге)
-
-        Возвращает:
-            int: Текущий установленный режим (0 или 1).
-            Если mode=None, возвращает текущий режим без изменений.
-
-        Note:
-            - Выход компаратора — открытый сток (Open-Drain), требуется подтяжка (4.7–10 кОм)
-            - level=False означает низкий уровень при тревоге (0V)
-            - level=True означает высокий уровень при тревоге (V+)
-        """
+    def set_comp_mode(self, mode: int | None = None, active_alarm_level: bool = False) -> int:
+        """Установить режим работы встроенного температурного компаратора. Смотри в comp_interface.py"""
         if mode is not None:
             mode = check_value(mode, range(2), f"Invalid comparator mode: {mode}")
             # T/nA бит (бит 4): 1=Therm (режим 0), 0=Alert (режим 1)
             self.T_nA = (0 == mode)
-            self.POL = level
+            self.POL = active_alarm_level
             self.set_config()
 
         self.get_config()
@@ -392,13 +367,13 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
         Аргументы:
             thresholds (tuple[float, float] | None): пороги температуры в градусах Цельсия.
-                Формат: (Tmin, Tmax) где Tmin < Tmax обязательно!
+                Формат: (Tmin, T_max) где Tmin < T_max обязательно!
                 Диапазон: {_THRESHOLD_TEMP_MIN} °C до {_THRESHOLD_TEMP_MAX} °C
                 Разрешение: 0.0078125 °C (1 LSB) — полная точность датчика
                 Если thresholds=None, возвращает текущие пороги без изменений.
 
         Возвращает:
-            tuple[float, float]: Текущие пороги температуры (Tmin, Tmax) в градусах Цельсия.
+            tuple[float, float]: Текущие пороги температуры (Tmin, T_max) в градусах Цельсия.
 
         Warning:
             - В режиме компаратора (mode=0): Tmin работает как гистерезис для сброса

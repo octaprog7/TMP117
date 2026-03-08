@@ -165,7 +165,7 @@ if __name__ == '__main__':
     # 1. Настройка компаратора
     print("\nНастройка компаратора...")
     comp_mode = 0  # 0=Therm, 1=Alert
-    ts.set_comp_mode(mode=comp_mode, level=False)
+    ts.set_comp_mode(mode=comp_mode, active_alarm_level=False)
 
     # ← result теперь доступен! Используем result.avg из статистики
     t_center = stats.avg if stats is not None else 26.0
