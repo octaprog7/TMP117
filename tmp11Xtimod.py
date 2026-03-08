@@ -5,7 +5,7 @@ import micropython
 from micropython import const
 from collections import namedtuple
 from sensor_pack_2 import bus_service
-from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Iterator, check_value
+from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Iterator, check_value_ex, check_value
 from sensor_pack_2.comp_interface import ICompInterface
 
 flags_tmp11X = namedtuple("flags_tmp11X", "eeprom_busy data_ready low_alert high_alert")
@@ -24,7 +24,7 @@ _REG_TEMP: int = const(0x00)
 # Регистр конфигурации
 _REG_CONFIG: int = const(0x01)
 # Регистры порогов температуры (компаратор)
-_REG_THIGH: int = const(0x02)      # Верхний порог (Tmax)
+_REG_THIGH: int = const(0x02)      # Верхний порог (T_max)
 _REG_TLOW: int = const(0x03)       # Нижний порог (Tmin)
 # Регистр разблокировки EEPROM
 _REG_EEPROM_UL: int = const(0x04)
@@ -410,8 +410,8 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
         if thresholds is not None:
             valid_range = _THRESHOLD_TEMP_MIN, _THRESHOLD_TEMP_MAX
-            t_min = check_value(thresholds[0], valid_range, get_err_str(thresholds[0], valid_range))
-            t_max = check_value(thresholds[1], valid_range, get_err_str(thresholds[1], valid_range))
+            t_min = check_value_ex(thresholds[0], valid_range, get_err_str(thresholds[0], valid_range))
+            t_max = check_value_ex(thresholds[1], valid_range, get_err_str(thresholds[1], valid_range))
 
             if t_min >= t_max:
                 raise ValueError(f"Tmin ({t_min}) должна быть строго меньше T_max ({t_max})!")
