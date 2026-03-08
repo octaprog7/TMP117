@@ -6,11 +6,40 @@ import micropython
 from sensor_pack_2 import bus_service
 from machine import Pin
 
+@micropython.native
+def check_value(value: int | None,
+                valid_range: range | tuple,
+                error_msg: str) -> int | None:
+    """
+    Старая версия: Проверка целочисленного значения в допустимом диапазоне.
+    Для сохранения программной совместимости со 'старым' кодом!
+
+    Аргументы:
+        value (int | None): Проверяемое целое значение.
+        valid_range (range | tuple): Допустимый диапазон.
+            - range: для непрерывного диапазона (например, range(-40, 126))
+            - tuple: для списка дискретных значений (например, (0, 2, 3))
+        error_msg (str): Сообщение об ошибке при выходе за диапазон.
+
+    Возвращает:
+        int | None: Проверенное значение, или None если value is None.
+
+    Raises:
+        ValueError: Если значение выходит за пределы диапазона.
+    """
+    if value is None:
+        return value
+
+    # Проверка: значение должно быть в диапазоне или списке
+    if value not in valid_range:
+        raise ValueError(error_msg)
+
+    return value
 
 @micropython.native
-def check_value(value: int | float | None,
-                valid_range: range | tuple[int, int] | tuple[float, float] | None,
-                error_msg: str) -> int | float | None:
+def check_value_ex(value: int | float | None,
+                   valid_range: range | tuple[int, int] | tuple[float, float] | None,
+                   error_msg: str) -> int | float | None:
     """
     Универсальная проверка значения (int или float) в допустимом диапазоне.
 
