@@ -1,5 +1,5 @@
 # TMP11X
-Micropython module for TMP117, TMP117 Texas Instruments temperature sensors.
+Micropython module for TMP117, TMP119 Texas Instruments temperature sensors.
 
 Just connect your TMP117, TMP119 board to Arduino, ESP or any other board with MicroPython firmware.
 
