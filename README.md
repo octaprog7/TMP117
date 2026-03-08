@@ -9,7 +9,7 @@ Supply voltage TMP117, TMP119 3.3 or 5.0 volts! Use four wires to connect (I2C).
 3. SDA
 4. SCL
 
-Upload micropython firmware to the NANO(ESP, etc) board, and then files: main.py, tmp11Xtimod.py and sensor_pack_2 folder. 
+Upload micropython firmware to the NANO(ESP, etc.) board, and then files: main.py, tmp11Xtimod.py and sensor_pack_2 folder. 
 Then open main.py in your IDE and run it.
 
 # Pictures
@@ -19,12 +19,12 @@ Then open main.py in your IDE and run it.
 ![alt text](https://github.com/octaprog7/TMP117/blob/master/tmp117board.jpg)
 
 # Troubleshooting
-| Problem | Possible Cause | Solution |
-|---------|----------------|----------|
-| ALERT=True always | Therm Mode + hysteresis | Cool below Tmin or switch to Alert Mode |
-| No I2C communication | Wrong address/pull-ups | Check ADD0, 4.7kΩ pull-up on SDA/SCL |
-| Inaccurate readings | Self-heating/mounting | Use `set_temperature_offset()` |
-| EEPROM not writing | Locked/busy | Check `EEPROM_Busy`, perform unlock sequence |
+| Problem              | Possible Cause          | Solution                                     |
+|----------------------|-------------------------|----------------------------------------------|
+| ALERT=True always    | Therm Mode + hysteresis | Cool below Tmin or switch to Alert Mode      |
+| No I2C communication | Wrong address/pull-ups  | Check ADD0, 4.7kΩ pull-up on SDA/SCL         |
+| Inaccurate readings  | Self-heating/mounting   | Use `set_temperature_offset()`               |
+| EEPROM not writing   | Locked/busy             | Check `EEPROM_Busy`, perform unlock sequence |
 
 ## Notes
 Note: This driver is tested on real hardware with TMP117.
