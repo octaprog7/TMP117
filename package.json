@@ -3,7 +3,8 @@
     ["tmp117timod.py", "github:octaprog7/TMP117/tmp117timod.py"],
     ["sensor_pack_2/__init__.py", "github:octaprog7/TMP117/sensor_pack_2/__init__.py"],
     ["sensor_pack_2/base_sensor.py", "github:octaprog7/TMP117/sensor_pack_2/base_sensor.py"],
-    ["sensor_pack_2/bus_service.py", "github:octaprog7/TMP117/sensor_pack_2/bus_service.py"]
+    ["sensor_pack_2/bus_service.py", "github:octaprog7/TMP117/sensor_pack_2/bus_service.py"],
+    ["sensor_pack_2/bus_service.py", "github:octaprog7/TMP117/sensor_pack_2/comp_interface.py"]
   ],
   "version": "1.0.0",
   "deps": []
