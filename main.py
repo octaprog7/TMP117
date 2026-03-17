@@ -75,7 +75,7 @@ if __name__ == '__main__':
     # если у вас посыпались исключения EIO, проверьте все соединения!
     # if you're getting EIO exceptions, check all connections!
     res = ts.get_id()
-    print(f"chip_id: 0x{res.device_id:03X}")
+    print(f"chip_id: 0x{res.device_id:03X}\trevision number: {res.revision_number}")
     # UID
     uid = ts.get_uid()
     print(f"UID: 0x{uid.word_0:04X}-0x{uid.word_1:04X}-0x{uid.word_2:04X}")
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     ts.start_measurement(single_shot=False)
     sleep_time = ts.get_conversion_cycle_time()
 
-    _lim = 22
+    _lim = 40
     _min_old = float("inf")
     _max_old = float("-inf")
     samples: list[float] = []
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     print(f"Текущая температура: {ts.get_measurement_value():.5f} °C")
 
     comp_samples_count = 10
-    print("\nМониторинг компаратора ({comp_samples_count} измерений)...")
+    print(f"\nМониторинг компаратора ({comp_samples_count} измерений)...")
     print(f"   {'№':<3} | {'Температура':<12} | {'ALERT':<6} | {'Статус':<20}")
     print(50 * "-")
 
