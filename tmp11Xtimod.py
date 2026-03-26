@@ -6,7 +6,7 @@ from micropython import const
 from collections import namedtuple
 from sensor_pack_2 import bus_service
 from sensor_pack_2.base_sensor import DeviceEx, IBaseSensorEx, IDentifier, Iterator, check_value_ex, check_value
-from sensor_pack_2.comp_interface import ICompInterface
+from sensor_pack_2.comp_interface import ICompInterface, CompMode
 
 flags_tmp11X = namedtuple("flags_tmp11X", "eeprom_busy data_ready low_alert high_alert")
 id_tmp11X = namedtuple("id_tmp11X", "revision_number device_id")
@@ -75,6 +75,8 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
     Оба устройства имеют идентичную карту регистров и полностью совместимы.
     """
+    # точность измерения температуры датчиком
+    TYPICAL_ACCURACY: float = const(0.1)
 
     def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48):
         """conversion_mode:
@@ -342,6 +344,22 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         self.get_config()
         return self.conversion_mode in (0, 2)
 
+    @staticmethod
+    @micropython.native
+    def get_typical_accuracy() -> float:
+        """
+        Возвращает типичную погрешность датчика (°C).
+
+        Возвращает:
+            float: +/- 0.1 °C (диапазон –20..50 °C, по даташиту TMP117)
+
+        :
+            - Используется для проверки минимального окна порогов (3 × точность)
+            - Для TMP117: мин. окно >= 0.3 °C (3 × 0.1 °C)
+            - ГОСТ Р 8.736–2011, п. 5.3.3 (правило 1/3)
+        """
+        return TMP11X.TYPICAL_ACCURACY  # типичная в диапазоне –20…+50 °C
+
     # ========================================================================
     # ICompInterface Implementation (Температурный компаратор)               #
     # ========================================================================
@@ -350,15 +368,16 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     def set_comp_mode(self, mode: int | None = None, active_alarm_level: bool = False) -> int:
         """Установить режим работы встроенного температурного компаратора. Смотри в comp_interface.py"""
         if mode is not None:
-            mode = check_value(mode, range(2), f"Invalid comparator mode: {mode}")
+            mode = check_value(mode, range(2),
+                               error_msg=f"Неверное значение mode: {mode}. Используйте CompMode.COMPARATOR или CompMode.INTERRUPT!")
             # T/nA бит (бит 4): 1=Therm (режим 0), 0=Alert (режим 1)
-            self.T_nA = (0 == mode)
+            self.T_nA = (CompMode.COMPARATOR == mode)
             self.POL = active_alarm_level
             self.set_config()
 
         self.get_config()
         # Возвращаем текущий режим
-        return 0 if self.T_nA else 1
+        return CompMode.COMPARATOR if self.T_nA else CompMode.INTERRUPT
 
     @micropython.native
     def set_thresholds(self, thresholds: tuple[float, float] | None = None) -> tuple[float, float]:
@@ -375,9 +394,9 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         Возвращает:
             tuple[float, float]: Текущие пороги температуры (Tmin, T_max) в градусах Цельсия.
 
-        Warning:
-            - В режиме компаратора (mode=0): Tmin работает как гистерезис для сброса
-            - В режиме прерывания (mode=1): оба порога работают независимо
+        Внимание:
+            - В режиме компаратора (CompMode.COMPARATOR): Tmin работает как гистерезис для сброса
+            - В режиме прерывания (CompMode.INTERRUPT): оба порога работают независимо
         """
         def get_err_str(value: int | float, r: range | tuple) -> str:
             """Возвращает строковое описание ошибки"""
@@ -390,6 +409,13 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
 
             if t_min >= t_max:
                 raise ValueError(f"Tmin ({t_min}) должна быть строго меньше T_max ({t_max})!")
+
+            accuracy = self.get_typical_accuracy()
+            min_window = 3 * accuracy
+            actual_window = t_max - t_min
+
+            if actual_window < min_window:
+                raise ValueError(f"Окно температур ({actual_window:.3f}°C) слишком узкое! Увеличьте разницу между T_min и T_max!")
 
             t_min_raw = _celsius_to_raw(t_min)
             t_max_raw = _celsius_to_raw(t_max)
@@ -415,14 +441,14 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         Возвращает:
             bool: True, если температура превысила T_max (тревога), False — иначе.
 
-        Note:
-            - В режиме прерывания (mode=1) вызов этого метода может подтвердить тревогу
+        Внимание:
+            - В режиме прерывания (CompMode.INTERRUPT) вызов этого метода может подтвердить тревогу
               и вернуть вывод в состояние нормы (чтение регистра сбрасывает флаг)
-            - В режиме компаратора (mode=0) состояние сбрасывается автоматически при T < Tmin
+            - В режиме компаратора (CompMode.COMPARATOR) состояние сбрасывается автоматически при T < Tmin
             - Метод читает регистр конфигурации (бит 15 = HIGH_Alert)
 
-            - В режиме Therm (mode=0): флаг сбрасывается только при T < Tmin (гистерезис)
-            - В режиме Alert (mode=1): флаг сбрасывается чтением регистра конфигурации
+            - В режиме Therm (CompMode.COMPARATOR): флаг сбрасывается только при T < Tmin (гистерезис)
+            - В режиме Alert (CompMode.INTERRUPT): флаг сбрасывается чтением регистра конфигурации
             - Метод читает регистр конфигурации напрямую (без обновления кэша)
 
         Warning:
