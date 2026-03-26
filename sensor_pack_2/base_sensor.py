@@ -196,7 +196,7 @@ class DeviceEx(Device):
         """Чтение из устройства в буфер"""
         return self.adapter.read_to_buf(self.address, buf)
 
-    def write(self, buf: bytes):
+    def write(self, buf: bytes | memoryview):
         """Записывает в устройство информацию из buf. Добавил 25.01.2024"""
         return self.adapter.write(self.address, buf)
 
