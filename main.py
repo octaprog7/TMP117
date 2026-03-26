@@ -3,7 +3,12 @@ import time
 import tmp11Xtimod
 from machine import I2C, Pin
 from collections import namedtuple
+from micropython import const
 from sensor_pack_2.bus_service import I2cAdapter
+from sensor_pack_2.comp_interface import CompMode
+
+AVG_64: int = const(3)           # AVG[1:0] = 0b11 -> 64 усреднения
+CONV_CYCLE_1S: int = const(4)    # CONV[2:0] = 0b100 -> 1 секунда
 
 # Тип для возвращаемого результата
 stats_result = namedtuple("stats_result", "count min max avg median range std_dev")
@@ -81,8 +86,8 @@ if __name__ == '__main__':
     print(f"UID: 0x{uid.word_0:04X}-0x{uid.word_1:04X}-0x{uid.word_2:04X}")
     res = ts.get_config()
     print(f"config after __init__: {hex(res)}")
-    ts.conversion_cycle_time = 7
-    ts.average = 3
+    ts.conversion_cycle_time = CONV_CYCLE_1S
+    ts.average = AVG_64
     ts.set_config()
     res = ts.get_config()
     print(f"new config: {hex(res)}")
@@ -129,12 +134,14 @@ if __name__ == '__main__':
     for i, val in enumerate(ts):
         if i >= _lim:
             break
-        if val is not None:
-            samples.append(val)
         time.sleep_ms(sleep_time)
+        if val is None:
+            continue
+        samples.append(val)
+
         _min = min(val, _min_old)
         _max = max(val, _max_old)
-        print(f"Temperature: {val} \u2103.\tmin: {_min}\tmax: {_max}")
+        print(f"[{i+1:2d}] {val:6.3f} °C | min: {_min:6.3f} | max: {_max:6.3f}")
         _min_old = _min
         _max_old = _max
 
@@ -164,10 +171,9 @@ if __name__ == '__main__':
 
     # 1. Настройка компаратора
     print("\nНастройка компаратора...")
-    comp_mode = 0  # 0=Therm, 1=Alert
+    comp_mode = CompMode.COMPARATOR  # 0=компаратор
     ts.set_comp_mode(mode=comp_mode, active_alarm_level=False)
 
-    # ← result теперь доступен! Используем result.avg из статистики
     t_center = stats.avg if stats is not None else 26.0
     t_min_set = t_center - 1
     t_max_set = 1 + t_center
@@ -175,7 +181,7 @@ if __name__ == '__main__':
     actual_range = ts.set_thresholds((t_min_set, t_max_set))
     current_mode = ts.set_comp_mode(mode=None)
 
-    print(f"Режим: {'Therm (термостат)' if 0 == current_mode else 'Alert (прерывание)'}")
+    print(f"Режим: {'Therm (термостат)' if CompMode.COMPARATOR == current_mode else 'Alert (прерывание)'}")
     print(f"Полярность: {'Активный высокий' if ts.POL else 'Активный низкий'}")
     print(f"Пороги: {actual_range[0]:.3f} °C — {actual_range[1]:.3f} °C")
     print(f"Текущая температура: {ts.get_measurement_value():.5f} °C")
