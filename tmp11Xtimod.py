@@ -47,6 +47,9 @@ _AVG_MIN_CYCLE_MS: tuple[int, ...] = const((0, 125, 500, 1000))
 # коэффициент для расчета температуры
 _scale = const(7.8125E-3)
 _scale_inv = const(128)
+# точность измерения температуры датчиком
+_TMP117_TYPICAL_ACCURACY = const(0.1)
+_TMP119_TYPICAL_ACCURACY = const(0.08)
 # Адреса регистров EEPROM (3 регистра по 16 бит). Полный уникальный ID датчика.
 _UID_EEPROM_ADDR: tuple[int, ...] = const((_REG_EEPROM1, _REG_EEPROM2, _REG_EEPROM3))
 # рабочий диапазон порогов температуры для датчиков из полупроводников на основе кремния
@@ -74,9 +77,9 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         - TMP119: Улучшенная точность (±0.08°C). Год начала производства: 2024, Strain Tolerance
 
     Оба устройства имеют идентичную карту регистров и полностью совместимы.
+    Для возврата правильного значения точности датчика методом get_typical_accuracy,
+    после __init__ вызови get_id()!!!
     """
-    # точность измерения температуры датчиком
-    TYPICAL_ACCURACY: float = const(0.1)
 
     def __init__(self, adapter: bus_service.BusAdapter, address: int = 0x48):
         """conversion_mode:
@@ -102,6 +105,8 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         self.average = 1
         self.DR_Alert = self.POL = self.T_nA = False
         self.data_ready = self.low_alert = self.high_alert = False
+        # для возврата правильного значения точности. После __init__ вызови get_id()!!!
+        self._rev_number = 0
         #
         self.set_config()
 
@@ -250,7 +255,10 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         - Device ID = 0x117 подтверждает, что подключён TMP117 для TMP119 будет что-то другое
         - Проверка device_id полезна для проверки подключения датчика"""
         _raw = self.get_set_reg(addr=_REG_DEVICE_ID, format_value="H")
-        return id_tmp11X(revision_number=(0xF000 & _raw) >> 12, device_id=0xFFF & _raw)
+        rn = (0xF000 & _raw) >> 12
+        # запоминаю для get_typical_accuracy
+        self._rev_number = rn
+        return id_tmp11X(revision_number=rn, device_id=0xFFF & _raw)
 
     def soft_reset(self):
         """Выполняет программный сброс датчика TMP117, TMP119.
@@ -344,9 +352,8 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
         self.get_config()
         return self.conversion_mode in (0, 2)
 
-    @staticmethod
     @micropython.native
-    def get_typical_accuracy() -> float:
+    def get_typical_accuracy(self) -> float:
         """
         Возвращает типичную погрешность датчика (°C).
 
@@ -358,7 +365,12 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             - Для TMP117: мин. окно >= 0.3 °C (3 × 0.1 °C)
             - ГОСТ Р 8.736–2011, п. 5.3.3 (правило 1/3)
         """
-        return TMP11X.TYPICAL_ACCURACY  # типичная в диапазоне –20…+50 °C
+        if 0 == self._rev_number:
+            return _TMP117_TYPICAL_ACCURACY # TMP117
+        if 2 == self._rev_number:
+            return _TMP119_TYPICAL_ACCURACY # TMP119
+        raise ValueError(f"Неизвестный датчик с revision number: {self._rev_number}")
+
 
     # ========================================================================
     # ICompInterface Implementation (Температурный компаратор)               #
