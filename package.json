@@ -1,11 +1,11 @@
 {
   "name": "tmp117",
   "urls": [
-    ["tmp117timod.py", "github:octaprog7/TMP117/tmp11Xtimod.py"],
+    ["tmp11Xtimod.py", "github:octaprog7/TMP117/tmp11Xtimod.py"],
     ["sensor_pack_2/__init__.py", "github:octaprog7/TMP117/sensor_pack_2/__init__.py"],
     ["sensor_pack_2/base_sensor.py", "github:octaprog7/TMP117/sensor_pack_2/base_sensor.py"],
     ["sensor_pack_2/bus_service.py", "github:octaprog7/TMP117/sensor_pack_2/bus_service.py"],
-    ["sensor_pack_2/bus_service.py", "github:octaprog7/TMP117/sensor_pack_2/comp_interface.py"]
+    ["sensor_pack_2/comp_interface.py", "github:octaprog7/TMP117/sensor_pack_2/comp_interface.py"]
   ],
   "version": "1.0.1",
   "deps": []
