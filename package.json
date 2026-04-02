@@ -1,4 +1,5 @@
 {
+  "name": "tmp117",
   "urls": [
     ["tmp117timod.py", "github:octaprog7/TMP117/tmp11Xtimod.py"],
     ["sensor_pack_2/__init__.py", "github:octaprog7/TMP117/sensor_pack_2/__init__.py"],
