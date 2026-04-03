@@ -1,6 +1,7 @@
 # micropython
 # MIT license
 
+import time
 import micropython
 from micropython import const
 from collections import namedtuple
@@ -181,6 +182,15 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
     def _set_config_reg(self, cfg: int) -> int:
         """write config to register (2 byte)"""
         return self.get_set_reg(addr=_REG_CONFIG, format_value=None, value=cfg)
+
+    def _wait_eeprom_ready(self) -> None:
+        """Ожидание сброса флага EEPROM_Busy после записи регистра."""
+        timeout_ms = 50
+        start_ms = time.ticks_ms()
+        while self.is_eeprom_busy():
+            if time.ticks_diff(time.ticks_ms(), start_ms) > timeout_ms:
+                raise TimeoutError("EEPROM programming timeout")
+            time.sleep_ms(1)
 
     @micropython.native
     def get_config(self) -> int:
@@ -371,6 +381,69 @@ class TMP11X(IBaseSensorEx, IDentifier, Iterator, ICompInterface):
             return _TMP119_TYPICAL_ACCURACY # TMP119
         raise ValueError(f"Неизвестный датчик с revision number: {self._rev_number}")
 
+    @micropython.native
+    def save_config(self, save_thresholds: bool = True) -> None:
+        """
+        Сохраняет конфигурацию датчика в EEPROM.
+        Не вызывайте этот метод часто, чтобы не исчерпать кол-во циклов записи EEPROM!
+
+        Аргументы:
+            save_thresholds (bool): Если True, сохраняет пороги T_HIGH и T_LOW
+                                   в EEPROM. Если False, сохраняет только
+                                   конфигурацию (режим, разрешение, POL и т.д.).
+                                   По умолчанию True.
+
+        Внимание:
+            - Циклов записи EEPROM: 1000-50000
+            - Время записи: 7 мс на регистр
+            - Не трогайте EEPROM[1] (адрес 0x05) - это нарушит NIST traceability!
+
+        Raises:
+            RuntimeError: Если EEPROM занята другой операцией
+            TimeoutError: Если запись в EEPROM не завершилась за 50 мс
+        """
+        # Проверяю, не занята ли EEPROM
+        if self.is_eeprom_busy():
+            raise RuntimeError("EEPROM занят, запись конфигурации невозможна!")
+
+        # Разблокирую EEPROM (бит 15 = EUN в регистре 0x04)
+        # Значение 0x8000 = бит 15 установлен
+        self.get_set_reg(addr=_REG_EEPROM_UL, format_value=None, value=0x8000)
+
+        # Записываю конфигурацию в регистры
+        # Когда EEPROM разблокирован, запись идёт и в EEPROM
+        self.set_config()
+        # ожидание завершения записи в EEPROM
+        self._wait_eeprom_ready()
+
+        # Записываю пороги в регистры (если нужно)
+        if save_thresholds:
+            # читаю текущие пороги
+            t_min, t_max = self.set_thresholds(None)
+            # Записываю TLOW вручную
+            t_min_raw = _celsius_to_raw(t_min)
+            self.get_set_reg(addr=_REG_TLOW, format_value=None, value=t_min_raw)
+            self._wait_eeprom_ready()
+
+            # Записываю THIGH вручную
+            t_max_raw = _celsius_to_raw(t_max)
+            self.get_set_reg(addr=_REG_THIGH, format_value=None, value=t_max_raw)
+            self._wait_eeprom_ready()
+
+        # General-Call Reset обязателен для загрузки из EEPROM
+        try:
+            # Адрес 0x00, команда 0x06 (стандарт I2C General Call)
+            self._connection.adapter.write(device_addr=0, buf=bytes((0x06,)))
+        except Exception as e:
+            # Если шина не поддерживает general-call на soft_reset
+            print(f"Ошибка: сбой вызова General-Call: {e}")
+            return
+
+        # Жду завершения сброса (2 мс по даташиту)
+        time.sleep_ms(2)
+
+        # Обновляю локальный кэш конфигурации
+        self.get_config()
 
     # ========================================================================
     # ICompInterface Implementation (Температурный компаратор)               #
