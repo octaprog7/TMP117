@@ -237,3 +237,78 @@ if __name__ == '__main__':
     print(f"   EEPROM_Busy: {flags.eeprom_busy}")
 
     print("\nПроверка компаратора завершена!")
+
+    # тест записи настроек датчика в EEPROM
+    print("\n" + 32 * "#")
+    print("Тест сохранения конфигурации в EEPROM")
+    print(32 * "#")
+
+    # Сохраняю исходные настройки для восстановления
+    original_thresholds = ts.set_thresholds(None)
+    original_mode = ts.set_comp_mode(mode=None)
+
+    # Устанавливаю тестовые значения (отличные от исходных)
+    print("\nУстановка тестовых настроек...")
+    test_tmin = 20.0
+    test_tmax = 30.0
+    ts.set_thresholds((test_tmin, test_tmax))
+    ts.set_comp_mode(mode=CompMode.INTERRUPT, active_alarm_level=True)
+    ts.set_config()
+
+    print(f"Установлены пороги: {test_tmin:.3f} C - {test_tmax:.3f} C")
+    print(f"Режим: Interrupt, POL=High")
+
+    # 3. Вызываем сохранение в EEPROM (без проверки ID)
+    print("\nВызов save_config(save_thresholds=True)...")
+    try:
+        # Метод save_config сам разблокирует EEPROM, запишет данные
+        # и выполнит soft_reset для загрузки и блокировки
+        ts.save_config(save_thresholds=True)
+        print("OK: Команда на сохранение отправлена")
+
+        # Небольшая задержка, чтобы убедиться, что внутренний soft_reset завершился
+        # (в методе save_config уже есть ожидание, но это страховка)
+        time.sleep_ms(5)
+
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+        # Если ошибка, выходим из теста, но восстанавливаю настройки
+        ts.set_thresholds(original_thresholds)
+        ts.set_comp_mode(mode=original_mode)
+        print("\nПроверка прервана!")
+        print(32 * "#")
+        exit()
+    except Exception as e:
+        print(f"ERROR: {type(e).__name__}: {e}")
+        exit()
+
+    # Читаю настройки ПОСЛЕ перезагрузки (для проверки)
+    print("\nЧтение настроек после сохранения...")
+    ts.get_config()  # Обновляю кэш из регистров
+    current_thresholds = ts.set_thresholds(None)
+    current_mode = ts.set_comp_mode(mode=None)
+
+    print(f"Пороги после reset: {current_thresholds[0]:.3f} C - {current_thresholds[1]:.3f} C")
+    print(f"Режим после reset: {'Therm' if current_mode == CompMode.COMPARATOR else 'Alert'}")
+
+    # Сравниваю с тестовыми значениями
+    print("\nПроверка целостности данных...")
+    eps = 0.01  # Допустимая погрешность из-за округления
+    if (abs(current_thresholds[0] - test_tmin) < eps and
+            abs(current_thresholds[1] - test_tmax) < eps and
+            current_mode == CompMode.INTERRUPT):
+        print("Успех: Настройки успешно сохранены и загружены из EEPROM!")
+    else:
+        print("Ошибка: Настройки не совпадают с ожидаемыми!")
+        print("Возможно, ошибка записи или EEPROM заблокирована.")
+
+    # Восстанавливаю исходные настройки (не обязательно)
+    # Раскомментируй, если хотите вернуть датчик в исходное состояние
+    # print("\nВосстановление исходных настроек датчика...")
+    # ts.set_thresholds(original_thresholds)
+    # ts.set_comp_mode(mode=original_mode)
+    # ts.set_config()
+    # ts.save_config(save_thresholds=True)
+
+    print("\nТест завершён!")
+    print(32 * "#")
