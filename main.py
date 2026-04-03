@@ -64,6 +64,62 @@ def calc_stats(samples: list[float]) -> stats_result | None:
         std_dev=std_dev
     )
 
+def print_config(sensor: tmp11Xtimod.TMP11X) -> None:
+    """
+    Выводит текущие настройки датчика TMP117/TMP119 в читаемом виде.
+    """
+    # Обновляем кэш конфигурации одним чтением
+    sensor.get_config()
+
+    # Идентификация
+    dev_id = sensor.get_id()
+    dev_name = "TMP117" if dev_id.revision_number == 0 else "TMP119"
+
+    # Режим преобразования
+    if sensor.is_continuously_mode():
+        mode_str = "Continuous"
+    elif sensor.is_single_shot_mode():
+        mode_str = "One-Shot"
+    else:
+        mode_str = "Shutdown"
+
+    # Карта усреднения
+    avg_map = ("1", "8", "32", "64")
+    avg_str = avg_map[sensor.average] if sensor.average in range(len(avg_map)) else "Unknown"
+
+    # Режим компаратора (без записи, только чтение)
+    _comp_mode = sensor.set_comp_mode(mode=None)
+    comp_str = "Therm" if _comp_mode == CompMode.COMPARATOR else "Alert"
+
+    # Полярность ALERT
+    pol_str = "Active-High" if ts.POL else "Active-Low"
+
+    # Пороги, смещение, температура, время цикла
+    t_low, t_high = sensor.set_thresholds(None)
+    offset = sensor.get_temperature_offset()
+    current_temp = sensor.get_measurement_value()
+    cycle_ms = sensor.get_conversion_cycle_time()
+
+    # Флаги состояния
+    _flags = sensor.get_flags()
+    uid = sensor.get_uid()
+    # Форматированный вывод
+    print("\n" + "=" * 38)
+    print(f"  CONFIG: {dev_name} (Rev {dev_id.revision_number})")
+    print(f"  UID: 0x{uid.word_0:04X}-0x{uid.word_1:04X}-0x{uid.word_2:04X}")
+    print("=" * 38)
+    print(f"  Mode:        {mode_str}")
+    print(f"  Cycle:       CONV={sensor.conversion_cycle_time} ({cycle_ms} ms)")
+    print(f"  Averaging:   {avg_str} samples")
+    print(f"  Offset:      {offset:+.4f} C")
+    print(f"  Thresholds:  {t_low:.4f} C / {t_high:.4f} C")
+    print(f"  Comp Mode:   {comp_str}")
+    print(f"  ALERT Pol:   {pol_str}")
+    print(f"  Flags:       DataReady={_flags.data_ready} LowAlert={_flags.low_alert} HighAlert={_flags.high_alert} EEPROM_Busy={_flags.eeprom_busy}")
+    temp_display = f"{current_temp:.4f} C" if current_temp is not None else "N/A (waiting)"
+    print(f"  Temp:        {temp_display}")
+    print("=" * 38 + "\n")
+
 
 if __name__ == '__main__':
     # пожалуйста установите выводы scl и sda в конструкторе для вашей платы, иначе ничего не заработает!
@@ -72,25 +128,14 @@ if __name__ == '__main__':
     # i2c = I2C(0, scl=Pin(13), sda=Pin(12), freq=400_000) № для примера
     # bus =  I2C(scl=Pin(4), sda=Pin(5), freq=100000)   # на esp8266    !
     # i2c = I2C(id=1, freq=400_000)  # on Arduino Nano RP2040 Connect tested
+    # если у вас посыпались исключения EIO, проверьте все соединения!
+    # if you're getting EIO exceptions, check all connections!
     i2c = I2C(id=1, scl=Pin(7), sda=Pin(6), freq=400_000)  # on Raspberry Pi Pico
     adapter = I2cAdapter(i2c)
     # ts - temperature sensor
     ts = tmp11Xtimod.TMP11X(adapter)
-
-    # если у вас посыпались исключения EIO, проверьте все соединения!
-    # if you're getting EIO exceptions, check all connections!
-    res = ts.get_id()
-    print(f"chip_id: 0x{res.device_id:03X}\trevision number: {res.revision_number}")
-    # UID
-    uid = ts.get_uid()
-    print(f"UID: 0x{uid.word_0:04X}-0x{uid.word_1:04X}-0x{uid.word_2:04X}")
-    res = ts.get_config()
-    print(f"config after __init__: {hex(res)}")
-    ts.conversion_cycle_time = CONV_CYCLE_1S
-    ts.average = AVG_64
-    ts.set_config()
-    res = ts.get_config()
-    print(f"new config: {hex(res)}")
+    # отображение состояния
+    print_config(sensor=ts)
     print(f"temperature offset: {ts.get_temperature_offset()}")
     ts.set_temperature_offset(3.0)
     print(f"temperature offset: {ts.get_temperature_offset()}")
@@ -312,3 +357,5 @@ if __name__ == '__main__':
 
     print("\nТест завершён!")
     print(32 * "#")
+
+    print_config(sensor=ts)
